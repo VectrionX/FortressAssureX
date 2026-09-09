@@ -21,7 +21,7 @@ Both supported modules have a fixed weight of 50%. Ratings are entered by the as
 
 ## Local evidence helper
 
-The optional helper accepts caller-provided text or reads a selected file locally in the browser. Safe common formats include `.txt`, `.text`, `.md`, `.csv`, `.json`, `.yaml`, `.yml`, `.ini`, `.conf`, `.cfg`, `.xml`, `.log`, `.report`, and `.html`. It is bounded to 1 MB and 2,000 lines by default, returns line-addressable excerpts, and performs no network request, upload, or transmission. Unsupported extensions, read errors, oversize input, and empty input are reported clearly.
+The optional helper accepts caller-provided text or reads a selected file locally in the browser. Supported lexical text formats are `.txt`, `.text`, `.md`, `.csv`, `.log`, and `.report`; `.json` is additionally checked for malformed syntax. It checks the selected file's byte size before reading, is bounded to 1 MB and 2,000 lines by default, returns source- and line-addressable excerpts, and performs no network request, upload, or transmission. Unsupported extensions, binary/undecodable content, malformed JSON, read errors, oversize input, and empty input are reported clearly.
 
 Parsing is lexical only. It never produces findings, infers severity, validates controls, or treats keywords as evidence. A user may copy a displayed excerpt into a human finding, then must verify it against the original source and provide the impact and recommendation themselves. Binary, encrypted, proprietary, malformed, or semantically complex formats are not supported.
 
