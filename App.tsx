@@ -5,6 +5,7 @@ import { Dashboard } from './components/Dashboard';
 import { DocumentationTab } from './components/DocumentationTab';
 import { ReportTab } from './components/ReportTab';
 import { RiskBadge } from './components/RiskBadge';
+import { LocalEvidenceParser } from './components/LocalEvidenceParser';
 import { createSampleAssessment } from './services/sampleAssessment';
 import {
   deriveAssessmentStatus,
@@ -47,6 +48,7 @@ const App: React.FC = () => {
   const [selectedModule, setSelectedModule] = useState<AssessmentModule>(AssessmentModule.ARCHITECTURE);
   const [draft, setDraft] = useState<EvidenceFindingDraft>(emptyDraft(AssessmentModule.ARCHITECTURE));
   const [formErrors, setFormErrors] = useState<string[]>([]);
+  const [maturityRatings, setMaturityRatings] = useState<Partial<Record<import('./services/assessmentModel').SupportedMvpModule, number>>>({});
 
   const status = useMemo(() => deriveAssessmentStatus(state.findings), [state.findings]);
 
@@ -60,6 +62,7 @@ const App: React.FC = () => {
     setSelectedModule(AssessmentModule.ARCHITECTURE);
     setDraft(emptyDraft(AssessmentModule.ARCHITECTURE));
     setFormErrors([]);
+    setMaturityRatings({});
   };
 
   const startRealAssessment = () => {
@@ -68,6 +71,7 @@ const App: React.FC = () => {
     setSelectedModule(AssessmentModule.ARCHITECTURE);
     setDraft(emptyDraft(AssessmentModule.ARCHITECTURE));
     setFormErrors([]);
+    setMaturityRatings({});
   };
 
   const selectModule = (module: AssessmentModule) => {
@@ -118,7 +122,7 @@ const App: React.FC = () => {
 
       <main className="mx-auto w-full max-w-7xl p-4 sm:p-6 lg:p-8">
         {state.mode === 'sample' && <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-black uppercase tracking-[0.16em]">Sample assessment — synthetic data — read only</p><p className="mt-1 text-sm">No assessment, scan, control validation, or evidence collection was performed.</p></div><button onClick={startRealAssessment} className="shrink-0 rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">Start a real assessment</button></div>}
-        {activeTab === 'overview' && <Dashboard data={state} status={status} onOpenEvidence={() => setActiveTab('evidence')} />}
+        {activeTab === 'overview' && <Dashboard data={state} status={status} onOpenEvidence={() => setActiveTab('evidence')} maturityRatings={maturityRatings} onMaturityRatingChange={(module, rating) => setMaturityRatings(current => ({ ...current, [module]: rating }))} />}
         {activeTab === 'ledger' && <ReportTab state={state} status={status} />}
         {activeTab === 'documentation' && <DocumentationTab />}
         {activeTab === 'evidence' && <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
@@ -134,6 +138,7 @@ const App: React.FC = () => {
                 <div className="grid gap-5 md:grid-cols-2"><label className="block text-sm font-semibold text-slate-700">Stated impact<textarea required value={draft.impact} onChange={event => setDraft({ ...draft, impact: event.target.value })} rows={3} className="mt-1.5 w-full rounded-xl border border-slate-300 p-3" /></label><label className="block text-sm font-semibold text-slate-700">Recommended action<textarea required value={draft.recommendation} onChange={event => setDraft({ ...draft, recommendation: event.target.value })} rows={3} className="mt-1.5 w-full rounded-xl border border-slate-300 p-3" /></label></div>
                 <button type="submit" className="rounded-xl bg-cyan-700 px-5 py-3 text-sm font-bold text-white hover:bg-cyan-800">Record evidence-backed human finding</button>
               </form>
+              <LocalEvidenceParser onUseExcerpt={(reference, excerpt) => setDraft(current => ({ ...current, evidenceReference: reference, evidenceExcerpt: excerpt }))} />
               <div className="mt-8 border-t border-slate-200 pt-6"><h3 className="font-bold">Recorded for {selectedModule}</h3>{visibleFindings.length === 0 ? <p className="mt-2 text-sm text-slate-500">No human findings recorded for this module. It is not assessed.</p> : <div className="mt-4 space-y-3">{visibleFindings.map(finding => <div key={finding.id} className="rounded-xl border border-slate-200 p-4"><div className="flex flex-wrap justify-between gap-2"><p className="font-bold">{finding.title}</p><RiskBadge level={finding.riskLevel} /></div><p className="mt-2 text-sm text-slate-600">Evidence: <span className="font-mono text-xs">{finding.evidenceReference}</span></p></div>)}</div>}</div>
             </> : <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center"><p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Not supported in MVP</p><h2 className="mt-2 text-2xl font-bold">{selectedModule}</h2><p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-600">This domain does not accept evidence, generate findings, or yield an assessment outcome in the current MVP. It is intentionally not assessed.</p></div>}
           </section>
