@@ -1,39 +1,37 @@
 # FortressAssureX — evidence-led assessment MVP
 
-FortressAssureX is a browser-only evidence register for authorized security assessment work. Its first MVP records **human-entered findings that are linked to stated evidence**. It intentionally does not create a cybersecurity assurance result from pasted text, uploaded files, or heuristic rules.
+FortressAssureX is a browser-only evidence register for authorized security assessment work. It records human-entered findings linked to stated evidence and provides a provisional, coverage-gated maturity indicator. It does not create findings or conclusions from text.
 
-## Current boundary
+## Supported boundary
 
-### Supported
-
-Evidence-backed human finding intake is available for exactly these modules:
+Evidence-backed human finding intake and maturity components are available for exactly:
 
 1. **Architecture & Network**
 2. **Vulnerability & Exposure**
 
-A finding cannot be recorded unless the assessor supplies a title, observation, evidence reference, evidence excerpt or locator, impact statement, recommendation, and an assessor-selected severity.
+A finding requires a title, observation, evidence reference, excerpt or locator, impact, recommendation, and assessor-selected severity. Other domains remain explicitly unsupported.
 
-### Not supported in this MVP
+## Maturity model
 
-All other listed domains are marked **Not supported in MVP**. They cannot accept input, generate a finding, or produce an outcome.
+The score is an ordinal indicator from 0–5, not a percentage or assurance result:
 
-This version does **not**:
+`score = Σ(component rating × fixed component weight)`
 
-- scan systems or parse configuration, logs, reports, or attachments;
-- auto-generate findings from keywords or heuristics;
-- validate control design or operating effectiveness;
-- calculate maturity, posture, risk, or assurance scores;
-- issue compliance conclusions, certifications, or attestations.
+Both supported modules have a fixed weight of 50%. Ratings are entered by the assessor as integers from 0 to 5 and are shown with each component contribution. Evidence quantity does not inflate a rating: it only gates eligibility. A component is eligible only when it has at least one valid human finding with a supported module, non-empty evidence reference, non-empty excerpt/locator, and all required finding fields. The score is valid only when every supported module has an eligible evidence record and a rating. Missing or unknown ratings are invalid and are never silently treated as zero. This model does not measure control effectiveness, risk, compliance, or assurance; qualified human review remains required.
+
+## Local evidence helper
+
+The optional helper accepts caller-provided text or reads a selected file locally in the browser. Supported lexical text formats are `.txt`, `.text`, `.md`, `.csv`, `.log`, and `.report`; `.json` is additionally checked for malformed syntax. It checks the selected file's byte size before reading, is bounded to 1 MB and 2,000 lines by default, returns source- and line-addressable excerpts, and performs no network request, upload, or transmission. Unsupported extensions, binary/undecodable content, malformed JSON, read errors, oversize input, and empty input are reported clearly.
+
+Parsing is lexical only. It never produces findings, infers severity, validates controls, or treats keywords as evidence. A user may copy a displayed excerpt into a human finding, then must verify it against the original source and provide the impact and recommendation themselves. Binary, encrypted, proprietary, malformed, or semantically complex formats are not supported.
 
 ## Assessment status
 
-The product reports a stable coverage status, never a favorable posture score:
+- **Not assessed** — no evidence-backed human findings exist for supported modules.
+- **Evidence intake incomplete** — only part of the supported boundary has evidence.
+- **Evidence recorded — human review required** — both modules have evidence; this is not an assurance conclusion.
 
-- **Not assessed** — no evidence-backed human findings are recorded for supported modules.
-- **Evidence intake incomplete** — at least one, but not every, supported module has recorded evidence. No assurance outcome is available.
-- **Evidence recorded — human review required** — both supported modules have an evidence-linked record. This is still not an assurance conclusion, control validation, or compliance attestation.
-
-Records are held only in the active browser session. Preserve source artifacts and follow your organization’s review and retention process before relying on any finding.
+Records and assessor ratings are held only in the active browser session. Preserve source artifacts under your organization’s retention process.
 
 ## Run locally
 
@@ -51,8 +49,6 @@ npm run build
 npm run audit:prod
 ```
 
-GitHub Actions runs test, typecheck, and build on pushes to `main`/`master` and on pull requests.
-
 ## Responsible use
 
-Use only authorized evidence. The assessor is responsible for checking each finding against its cited source and obtaining qualified review. FortressAssureX is not a substitute for a formal assessment, technical validation, legal advice, or a compliance program.
+Use only authorized evidence. Review every excerpt against its source and obtain qualified review before relying on any indicator or finding. FortressAssureX is not a substitute for a formal assessment, technical validation, legal advice, or a compliance program.
