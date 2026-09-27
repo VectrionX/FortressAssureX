@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const app = fs.readFileSync(new URL('../App.tsx', import.meta.url), 'utf8');
+const css = fs.readFileSync(new URL('../index.css', import.meta.url), 'utf8');
+assert.match(app, /aria-label="Primary navigation"/);
+assert.match(app, /aria-current=/);
+assert.match(app, /focus-visible:outline/);
+assert.match(css, /prefers-reduced-motion/);
+assert.match(css, /min-width: 320px/);
+assert.match(app, /md:grid-cols-2/);
+assert.match(app, /max-w-6xl/);
+console.log('a11y/responsive contract passed: keyboard focus styles, nav semantics, reduced motion, 320px minimum and responsive layouts present');

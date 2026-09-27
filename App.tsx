@@ -1,339 +1,61 @@
-
-import React, { useState, useEffect } from 'react';
-import { AssessmentModule, RiskLevel, Finding, AssessmentState, Criticality, SystemAsset, SystemCategory, AssessmentType, SolutionCategory } from './types';
-import { Dashboard } from './components/Dashboard';
+import React, { useState } from 'react';
+import { AssessmentModule, RiskLevel, Finding, AssessmentState, Criticality, SystemCategory, AssessmentType } from './types';
 import { AssessmentSetup } from './components/AssessmentSetup';
-import { ReportTab } from './components/ReportTab'; // Import ReportTab
-import { DocumentationTab } from './components/DocumentationTab';
-import { 
-  runLocalNetworkAudit, 
-  runGenericAudit, 
-  runVulnerabilityAudit, 
-  runLoggingAudit, 
-  runSecurityControlAudit, 
-  runGovernanceAudit, 
-  runThirdPartyAudit, 
-  runDataProtectionAudit, 
-  runAppSecAudit, 
-  runHardeningAudit 
-} from './services/localEngine';
-import { getCoreBankingSampleData } from './services/sampleData';
-
-import { GenericModule } from './components/modules/GenericModule';
-
-// Module Imports
-import { NetworkModule } from './components/modules/NetworkModule';
-import { IdentityModule } from './components/modules/IdentityModule';
-import { VulnerabilityModule } from './components/modules/VulnerabilityModule';
-import { AppSecModule } from './components/modules/AppSecModule';
-import { DataProtectionModule } from './components/modules/DataProtectionModule';
-import { LoggingModule } from './components/modules/LoggingModule';
-import { IncidentModule } from './components/modules/IncidentModule';
-import { HardeningModule } from './components/modules/HardeningModule';
-import { ThirdPartyModule } from './components/modules/ThirdPartyModule';
-import { GovernanceModule } from './components/modules/GovernanceModule';
-import { OtherModule } from './components/modules/OtherModule';
-import { SecurityControlAssuranceModule } from './components/modules/SecurityControlAssuranceModule';
-import { RiskBadge } from './components/RiskBadge';
 
 const INITIAL_MODULE_SCORES = Object.values(AssessmentModule).reduce((acc, module) => {
   acc[module] = 0;
   return acc;
 }, {} as Record<AssessmentModule, number>);
 
+const emptyState = (): AssessmentState => ({
+  projectName: '', systemOwner: '', assetCriticality: Criticality.MEDIUM,
+  businessCriticality: Criticality.MEDIUM, systemCategory: SystemCategory.BANKING,
+  assessmentType: AssessmentType.BANKING, startDate: new Date().toISOString().slice(0, 10),
+  systemScope: [], findings: [], moduleScores: INITIAL_MODULE_SCORES,
+  enabledModules: Object.values(AssessmentModule), isInitialized: false
+});
+
 const App: React.FC = () => {
-  const [state, setState] = useState<AssessmentState>({
-    projectName: '',
-    systemOwner: '',
-    assetCriticality: Criticality.MEDIUM,
-    businessCriticality: Criticality.MEDIUM,
-    systemCategory: SystemCategory.BANKING,
-    assessmentType: AssessmentType.BANKING,
-    startDate: '',
-    systemScope: [],
-    findings: [],
-    moduleScores: INITIAL_MODULE_SCORES,
-    enabledModules: Object.values(AssessmentModule),
-    isInitialized: false
-  });
+  const [state, setState] = useState<AssessmentState>(emptyState);
+  const [activeTab, setActiveTab] = useState<'overview' | 'evidence' | 'register' | 'method'>('overview');
+  const [form, setForm] = useState({ module: AssessmentModule.ARCHITECTURE, title: '', observation: '', evidence: '', impact: '', recommendation: '', riskLevel: RiskLevel.INFORMATIONAL, owner: '' });
 
-  // Updated Tab Type
-  const [activeTab, setActiveTab] = useState<'overview' | 'modules' | 'register' | 'report' | 'documentation' | 'settings'>('overview');
-  const [selectedModule, setSelectedModule] = useState<AssessmentModule | 'ASSURANCE'>(AssessmentModule.ARCHITECTURE);
-  const [moduleInputs, setModuleInputs] = useState<Record<string, string>>({});
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [showManualForm, setShowManualForm] = useState(false);
-
-  useEffect(() => {
-    if (state.systemCategory === SystemCategory.SECURITY && state.isInitialized) {
-      setSelectedModule('ASSURANCE');
-    }
-  }, [state.systemCategory, state.isInitialized]);
-
-  const handleInitialize = (initData: any) => {
-    setState(prev => ({ ...prev, ...initData, isInitialized: true }));
-  };
-
-  const handleLoadSample = () => {
-    const sampleData = getCoreBankingSampleData();
-    setState(prev => ({
-      ...prev,
-      ...sampleData,
-      isInitialized: true
-    }));
-  };
-
-  const handleAppSecAudit = (module: AssessmentModule, data: any) => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      const results = runAppSecAudit(data);
-      processFindings(results, module);
-      setIsProcessing(false);
-    }, 1000);
-  };
-
-  const handleSecurityAssurance = (data: any) => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      const results = runSecurityControlAudit(data);
-      setState(prev => {
-        const otherFindings = prev.findings.filter(f => !f.id.startsWith('sec-'));
-        return { ...prev, findings: [...otherFindings, ...results] };
-      });
-      setIsProcessing(false);
-    }, 1000);
-  };
-
-  const handleGovernanceAudit = (module: AssessmentModule, data: any) => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      const results = runGovernanceAudit(data);
-      processFindings(results, module);
-      setIsProcessing(false);
-    }, 1000);
-  };
-
-  const handleThirdPartyAudit = (module: AssessmentModule, data: any) => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      const results = runThirdPartyAudit(data);
-      processFindings(results, module);
-      setIsProcessing(false);
-    }, 1000);
-  };
-
-  const handleDataProtectionAudit = (module: AssessmentModule, data: any) => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      const results = runDataProtectionAudit(data);
-      processFindings(results, module);
-      setIsProcessing(false);
-    }, 1000);
-  };
-
-  const handleNetworkAudit = (archData: string, fwData: string, scopeIps: string) => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      const results = runLocalNetworkAudit(archData, fwData, scopeIps);
-      processFindings(results, AssessmentModule.ARCHITECTURE);
-      setIsProcessing(false);
-    }, 800);
-  };
-
-  const handleLoggingAudit = (data: { checklist: any; siemContent: string; config: any }) => {
-    setIsProcessing(true);
-    setTimeout(() => {
-      const results = runLoggingAudit(data.checklist, data.siemContent, state.systemScope, data.config);
-      processFindings(results, AssessmentModule.LOGGING);
-      setIsProcessing(false);
-    }, 1500);
-  };
-
-  const handleEvidenceAudit = (module: AssessmentModule, evidence: any) => {
-    setIsProcessing(true);
-    const evidenceSnap = JSON.parse(JSON.stringify(evidence));
-    setTimeout(() => {
-      const results = runVulnerabilityAudit(evidenceSnap, state.assetCriticality);
-      const taggedResults = results.map(r => ({ ...r, module }));
-      processFindings(taggedResults, module);
-      setIsProcessing(false);
-    }, 1200);
-  };
-
-  const handleGenericAnalysis = (module: AssessmentModule) => {
-    const input = moduleInputs[module] || "";
-    setIsProcessing(true);
-    setTimeout(() => {
-      const results = runGenericAudit(module, input);
-      processFindings(results, module);
-      setIsProcessing(false);
-    }, 500);
-  };
-
-  const handleAddManualFinding = (manual: any) => {
-    const targetModule = selectedModule === 'ASSURANCE' ? AssessmentModule.GOVERNANCE : selectedModule;
-    const newFinding: Finding = {
-      id: `manual-${Date.now()}`,
-      module: targetModule as AssessmentModule,
-      title: `[Manual] ${manual.title}`,
-      riskLevel: manual.riskLevel,
-      impact: manual.impact,
-      recommendation: manual.recommendation,
-      status: 'Open'
-    };
-    processFindings([newFinding], targetModule as AssessmentModule);
-    setShowManualForm(false);
-  };
-
-  const processFindings = (newFindings: Finding[], module: AssessmentModule) => {
-    setState(prev => {
-        const otherFindings = prev.findings.filter(f => f.module !== module || f.title.startsWith('[Manual]'));
-        const combinedFindings = [...otherFindings, ...newFindings];
-        const moduleFindings = combinedFindings.filter(f => f.module === module);
-        
-        let multiplier = prev.assetCriticality === Criticality.HIGH ? 1.5 : prev.assetCriticality === Criticality.LOW ? 0.7 : 1;
-        
-        if (prev.systemCategory === SystemCategory.SECURITY && (module === AssessmentModule.ARCHITECTURE || module === AssessmentModule.IDENTITY)) {
-          multiplier *= 1.25;
-        }
-
-        const riskPenalty = moduleFindings.reduce((acc, curr) => {
-            if (curr.riskLevel === RiskLevel.CRITICAL) return acc + (30 * multiplier);
-            if (curr.riskLevel === RiskLevel.HIGH) return acc + (15 * multiplier);
-            if (curr.riskLevel === RiskLevel.MEDIUM) return acc + (5 * multiplier);
-            return acc + (1 * multiplier);
-        }, 0);
-        
-        const score = Math.max(0, 100 - riskPenalty);
-        return {
-            ...prev,
-            findings: combinedFindings,
-            moduleScores: { ...prev.moduleScores, [module]: score }
-        };
-    });
+  const handleInitialize = (initData: any) => setState(prev => ({ ...prev, ...initData, isInitialized: true }));
+  const handleLoadSample = () => setState({ ...emptyState(), projectName: 'Synthetic evidence workspace', systemOwner: 'User-supplied example', isInitialized: true });
+  const updateForm = (key: string, value: string) => setForm(prev => ({ ...prev, [key]: value }));
+  const addFinding = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!form.title.trim() || !form.evidence.trim()) return;
+    const finding: Finding = { id: `evidence-${Date.now()}`, module: form.module, title: form.title.trim(), observation: form.observation.trim() || undefined, evidence: form.evidence.trim(), impact: form.impact.trim() || 'Impact not assessed; record the consequence supplied by the assessor.', recommendation: form.recommendation.trim() || 'Record the owner-supplied next action.', riskLevel: form.riskLevel, owner: form.owner.trim() || undefined, status: 'Open' };
+    setState(prev => ({ ...prev, findings: [...prev.findings, finding] }));
+    setForm(prev => ({ ...prev, title: '', observation: '', evidence: '', impact: '', recommendation: '', owner: '' }));
+    setActiveTab('register');
   };
 
   if (!state.isInitialized) return <AssessmentSetup onInitialize={handleInitialize} onLoadSample={handleLoadSample} />;
+  const counts = Object.values(RiskLevel).reduce((acc, level) => ({ ...acc, [level]: state.findings.filter(f => f.riskLevel === level).length }), {} as Record<RiskLevel, number>);
+  const tabs = [['overview', 'Overview'], ['evidence', 'Add evidence'], ['register', 'Evidence ledger'], ['method', 'Method & limits']] as const;
 
-  const visibleModules = state.enabledModules;
-  const currentFindings = selectedModule === 'ASSURANCE' 
-    ? state.findings.filter(f => f.id.startsWith('sec-'))
-    : state.findings.filter(f => f.module === selectedModule);
-
-  const renderModule = () => {
-    if (selectedModule === 'ASSURANCE') {
-      return <SecurityControlAssuranceModule 
-        onAnalyze={handleSecurityAssurance} 
-        isProcessing={isProcessing} 
-        findings={currentFindings} 
-      />;
-    }
-
-    const commonProps = {
-      isProcessing,
-      findings: currentFindings,
-      showManualForm,
-      onToggleManualForm: () => setShowManualForm(!showManualForm),
-      onAddManual: handleAddManualFinding,
-    };
-
-    const genericProps = {
-      ...commonProps,
-      inputValue: moduleInputs[selectedModule] || '',
-      onInputChange: (v: string) => setModuleInputs({...moduleInputs, [selectedModule]: v}),
-      onAnalyze: () => handleGenericAnalysis(selectedModule as AssessmentModule),
-    };
-
-    switch (selectedModule) {
-      case AssessmentModule.ARCHITECTURE: return <NetworkModule {...commonProps} onAnalyze={handleNetworkAudit} systemScope={state.systemScope} />;
-      case AssessmentModule.IDENTITY: return <IdentityModule {...genericProps} />;
-      case AssessmentModule.VULNERABILITY: return <VulnerabilityModule {...commonProps} onAnalyze={handleEvidenceAudit} />;
-      case AssessmentModule.APPLICATION: return <AppSecModule {...commonProps} onAnalyze={handleAppSecAudit} />;
-      case AssessmentModule.DATA: return <DataProtectionModule {...commonProps} onAnalyze={handleDataProtectionAudit} />;
-      case AssessmentModule.LOGGING: return <LoggingModule {...commonProps} onAnalyze={(m, d) => handleLoggingAudit(d)} systemScope={state.systemScope} />;
-      case AssessmentModule.INCIDENT: return <IncidentModule {...genericProps} />;
-      case AssessmentModule.HARDENING: return <HardeningModule {...commonProps} onAnalyze={handleEvidenceAudit} />;
-      case AssessmentModule.THIRD_PARTY: return <ThirdPartyModule {...commonProps} onAnalyze={handleThirdPartyAudit} />;
-      case AssessmentModule.GOVERNANCE: return <GovernanceModule {...commonProps} onAnalyze={handleGovernanceAudit} />;
-      case AssessmentModule.OTHER: return <OtherModule {...genericProps} />;
-      case AssessmentModule.CLOUD_SECURITY: return <GenericModule {...genericProps} module={AssessmentModule.CLOUD_SECURITY} />;
-      case AssessmentModule.ENDPOINT_SECURITY: return <GenericModule {...genericProps} module={AssessmentModule.ENDPOINT_SECURITY} />;
-      case AssessmentModule.EMAIL_SECURITY: return <GenericModule {...genericProps} module={AssessmentModule.EMAIL_SECURITY} />;
-      case AssessmentModule.SECURITY_OPERATIONS: return <GenericModule {...genericProps} module={AssessmentModule.SECURITY_OPERATIONS} />;
-      case AssessmentModule.BUSINESS_CONTINUITY: return <GenericModule {...genericProps} module={AssessmentModule.BUSINESS_CONTINUITY} />;
-      default: return null;
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-inter">
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-3 md:py-0 md:h-16 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex items-center space-x-3">
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shadow-lg flex-shrink-0 ${state.systemCategory === SystemCategory.SECURITY ? 'bg-blue-600' : 'bg-slate-800'}`}>
-              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-lg font-bold text-slate-900 leading-none truncate">FortressAssure</h1>
-              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                 <span className="text-[10px] text-slate-500 uppercase font-semibold truncate max-w-[120px] sm:max-w-xs">{state.projectName}</span>
-                 <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase whitespace-nowrap ${state.systemCategory === SystemCategory.SECURITY ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>{state.systemCategory}</span>
-              </div>
-            </div>
-          </div>
-          <nav className="flex space-x-1 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 hide-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
-            {['overview', 'modules', 'register', 'report', 'documentation', 'settings'].map(tab => (
-              <button key={tab} onClick={() => { setActiveTab(tab as any); setShowManualForm(false); }} className={`whitespace-nowrap px-4 py-2 text-sm font-medium rounded-md transition-all ${activeTab === tab ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </button>
-            ))}
-          </nav>
-        </div>
-      </header>
-      <main className="flex-1 max-w-7xl mx-auto w-full p-4 md:p-8">
-        {activeTab === 'overview' ? <Dashboard data={state} /> : 
-         activeTab === 'report' ? <ReportTab state={state} /> :
-         activeTab === 'documentation' ? <DocumentationTab /> :
-         activeTab === 'modules' ? (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6">
-          <div className="col-span-1 space-y-1">
-            {state.systemCategory === SystemCategory.SECURITY && (
-              <button 
-                onClick={() => { setSelectedModule('ASSURANCE'); setShowManualForm(false); }} 
-                className={`w-full text-left px-4 py-3 rounded-lg text-sm font-black transition-all border-l-4 mb-4 ${selectedModule === 'ASSURANCE' ? 'bg-blue-900 text-white border-blue-400 shadow-md' : 'bg-blue-50 text-blue-800 hover:bg-blue-100 border-blue-200'}`}
-              >
-                Control Assurance
-              </button>
-            )}
-            {visibleModules.map(module => (
-              <button key={module} onClick={() => { setSelectedModule(module); setShowManualForm(false); }} className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all ${selectedModule === module ? 'bg-slate-800 text-white shadow-md' : 'bg-white text-slate-600 hover:bg-slate-100 border'}`}>
-                {module} {state.moduleScores[module] > 0 && <span className="float-right text-[10px]">{Math.round(state.moduleScores[module])}%</span>}
-              </button>
-            ))}
-          </div>
-          <div className="col-span-1 md:col-span-3 bg-white p-4 sm:p-8 rounded-xl border relative min-h-[600px]">
-            <h2 className="text-xl md:text-2xl font-bold text-slate-900 mb-6">{selectedModule === 'ASSURANCE' ? 'Security Control Assurance' : selectedModule}</h2>
-            {renderModule()}
-          </div>
-        </div>
-      ) : activeTab === 'register' ? (
-        <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-          <div className="p-4 md:p-6 border-b flex justify-between items-center bg-slate-50/50">
-            <h2 className="text-lg md:text-xl font-bold text-slate-900">Findings Registry</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm whitespace-nowrap"><thead className="bg-slate-50 border-b text-slate-500"><tr><th className="px-4 md:px-6 py-4">Module</th><th className="px-4 md:px-6 py-4">Issue</th><th className="px-4 md:px-6 py-4 text-center">Severity</th><th className="px-4 md:px-6 py-4">Status</th></tr></thead><tbody className="divide-y">
-              {state.findings.map(f => (
-                <tr key={f.id} className="hover:bg-slate-50/30"><td className="px-4 md:px-6 py-4">{f.module}</td><td className="px-4 md:px-6 py-4 font-bold max-w-xs md:max-w-none truncate" title={f.title}>{f.title}</td><td className="px-4 md:px-6 py-4 text-center"><RiskBadge level={f.riskLevel} /></td><td className="px-4 md:px-6 py-4"><span className="px-2 py-1 bg-slate-100 text-[10px] font-bold uppercase rounded">Open</span></td></tr>
-              ))}
-            </tbody></table>
-          </div>
-        </div>
-      ) : (
-        <div className="bg-white p-8 rounded-xl border">Settings. Under Construction.</div>
-      )}</main>
-    </div>
-  );
+  return <div className="min-h-screen bg-slate-50 text-slate-900">
+    <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur"><div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4">
+      <div><p className="text-xs font-bold uppercase tracking-[.2em] text-indigo-700">FortressAssureX</p><h1 className="text-lg font-bold">Evidence register</h1><p className="text-xs text-slate-500">{state.projectName} · user-supplied evidence only</p></div>
+      <nav aria-label="Primary navigation" className="flex flex-wrap gap-1">{tabs.map(([id, label]) => <button key={id} onClick={() => setActiveTab(id)} aria-current={activeTab === id ? 'page' : undefined} className={`rounded-lg px-3 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${activeTab === id ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'}`}>{label}</button>)}</nav>
+    </div></header>
+    <main className="mx-auto max-w-6xl space-y-6 px-4 py-8">
+      {activeTab === 'overview' && <><section className="rounded-2xl bg-slate-900 p-6 text-white shadow-sm"><p className="text-xs font-bold uppercase tracking-widest text-indigo-300">Bounded MVP</p><h2 className="mt-2 text-2xl font-bold">Record findings linked to supplied evidence.</h2><p className="mt-3 max-w-2xl text-slate-300">This workspace does not scan, validate controls, calculate posture, store evidence, or issue assurance, attestation, or certification claims.</p><button onClick={() => setActiveTab('evidence')} className="mt-5 rounded-lg bg-white px-4 py-2 font-semibold text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300">Add a finding</button></section>
+        <section className="grid grid-cols-2 gap-4 md:grid-cols-5">{Object.values(RiskLevel).map(level => <div key={level} className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs font-bold uppercase text-slate-500">{level}</p><p className="mt-2 text-2xl font-bold">{counts[level]}</p></div>)}</section>
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-950"><strong>Scope boundary:</strong> severity, impact, ownership, and next actions are transcribed from assessor input. No score, risk rating, maturity value, or compliance conclusion is derived by this app.</section></>}
+      {activeTab === 'evidence' && <form onSubmit={addFinding} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-xl font-bold">Add a user-supplied finding</h2><p className="mt-1 text-sm text-slate-600">Evidence is held in memory for this browser session only and is never sent anywhere.</p><div className="mt-6 grid gap-4 md:grid-cols-2">
+        <label className="field">Domain<select value={form.module} onChange={e => updateForm('module', e.target.value)}>{Object.values(AssessmentModule).map(m => <option key={m}>{m}</option>)}</select></label>
+        <label className="field">Severity supplied by assessor<select value={form.riskLevel} onChange={e => updateForm('riskLevel', e.target.value)}>{Object.values(RiskLevel).map(l => <option key={l}>{l}</option>)}</select></label>
+        <label className="field md:col-span-2">Finding title<input required value={form.title} onChange={e => updateForm('title', e.target.value)} placeholder="Describe the finding" /></label>
+        <label className="field md:col-span-2">Evidence reference or excerpt<textarea required value={form.evidence} onChange={e => updateForm('evidence', e.target.value)} placeholder="Reference the supplied document, ticket, or observation" /></label>
+        <label className="field">Observation<textarea value={form.observation} onChange={e => updateForm('observation', e.target.value)} /></label><label className="field">Impact supplied by assessor<textarea value={form.impact} onChange={e => updateForm('impact', e.target.value)} /></label>
+        <label className="field">Next action supplied by assessor<textarea value={form.recommendation} onChange={e => updateForm('recommendation', e.target.value)} /></label><label className="field">Owner<input value={form.owner} onChange={e => updateForm('owner', e.target.value)} /></label>
+      </div><button type="submit" className="mt-5 rounded-lg bg-indigo-700 px-5 py-3 font-semibold text-white hover:bg-indigo-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-700">Save to session ledger</button></form>}
+      {activeTab === 'register' && <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-xl font-bold">Evidence ledger</h2><p className="mt-1 text-sm text-slate-600">{state.findings.length} finding(s), entered by the assessor.</p><div className="mt-5 space-y-4">{state.findings.length === 0 ? <p className="rounded-lg bg-slate-50 p-6 text-center text-slate-500">No findings recorded yet.</p> : state.findings.map(f => <article key={f.id} className="rounded-xl border border-slate-200 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase text-indigo-700">{f.module}</p><h3 className="mt-1 font-bold">{f.title}</h3></div><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold">{f.riskLevel}</span></div><p className="mt-3 text-sm text-slate-700"><strong>Evidence:</strong> {f.evidence}</p>{f.observation && <p className="mt-2 text-sm text-slate-600"><strong>Observation:</strong> {f.observation}</p>}<p className="mt-2 text-sm text-slate-600"><strong>Next action:</strong> {f.recommendation}</p></article>)}</div></section>}
+      {activeTab === 'method' && <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-xl font-bold">Method and limits</h2><div className="mt-4 space-y-4 text-sm leading-6 text-slate-700"><p>FortressAssureX records human-entered findings and links them to evidence references. It does not perform heuristic audits, parse uploaded files, call external services, access network targets, or persist data.</p><p>Unavailable domains remain unavailable rather than being inferred. The ledger is not an audit report, control validation, risk calculation, posture score, assurance rating, attestation, certification, or compliance determination.</p><p>Before relying on any entry, the responsible assessor must independently verify the source evidence, context, severity, impact, ownership, and remediation decision.</p></div></section>}
+    </main>
+  </div>;
 };
-
 export default App;
