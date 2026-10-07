@@ -1,196 +1,66 @@
-
-import React, { useMemo } from 'react';
-import { ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
-import { AssessmentState, RiskLevel, SystemCategory, AssessmentType } from '../types';
+import React from 'react';
+import { AssessmentModule, AssessmentState, Finding, RiskLevel } from '../types';
+import { AssessmentStatus, calculateMaturityScore, isEligibleEvidenceFinding, SUPPORTED_MVP_MODULES, type SupportedMvpModule } from '../services/assessmentModel';
+import { RiskBadge } from './RiskBadge';
 
 interface DashboardProps {
   data: AssessmentState;
+  status: AssessmentStatus;
+  onOpenEvidence: () => void;
+  maturityRatings: Partial<Record<SupportedMvpModule, number>>;
+  onMaturityRatingChange: (module: SupportedMvpModule, rating: number | undefined) => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
-  const riskCounts = {
-    [RiskLevel.CRITICAL]: data.findings.filter(f => f.riskLevel === RiskLevel.CRITICAL).length,
-    [RiskLevel.HIGH]: data.findings.filter(f => f.riskLevel === RiskLevel.HIGH).length,
-    [RiskLevel.MEDIUM]: data.findings.filter(f => f.riskLevel === RiskLevel.MEDIUM).length,
-    [RiskLevel.LOW]: data.findings.filter(f => f.riskLevel === RiskLevel.LOW).length,
-  };
+const statusStyle: Record<AssessmentStatus['code'], string> = {
+  NOT_ASSESSED: 'border-slate-300 bg-slate-50 text-slate-800',
+  EVIDENCE_INTAKE_INCOMPLETE: 'border-amber-300 bg-amber-50 text-amber-950',
+  EVIDENCE_RECORDED_REQUIRES_REVIEW: 'border-cyan-300 bg-cyan-50 text-cyan-950',
+};
 
-  const radarData = data.enabledModules.map((moduleName) => ({
-    subject: (moduleName || '').split(' ')[0], // shortened for UI
-    A: data.moduleScores[moduleName] || 0,
-    fullMark: 100,
-  }));
+const findingCounts = (findings: Finding[]) => Object.values(RiskLevel).map(level => ({
+  level,
+  count: findings.filter(finding => finding.riskLevel === level).length,
+}));
 
-  const enabledScores = data.enabledModules.map(m => data.moduleScores[m]);
-  const overallScore = enabledScores.length > 0 
-    ? Math.round(enabledScores.reduce((a, b) => a + b, 0) / enabledScores.length)
-    : 0;
-
-  const getRating = (score: number) => {
-    if (score >= 95) return 'AAA';
-    if (score >= 90) return 'AA';
-    if (score >= 85) return 'A';
-    if (score >= 80) return 'BBB';
-    if (score >= 70) return 'BB';
-    if (score >= 60) return 'B';
-    return 'C';
-  };
-
-  const overallRating = getRating(overallScore);
-
-  // --- Heatmap Logic ---
-  const heatMapData = useMemo(() => {
-    // Rows: Critical, High, Medium, Low
-    // Cols: Modules
-    const matrix: Record<string, Record<string, number>> = {};
-    const modules = data.enabledModules;
-    
-    [RiskLevel.CRITICAL, RiskLevel.HIGH, RiskLevel.MEDIUM, RiskLevel.LOW].forEach(risk => {
-      matrix[risk] = {};
-      modules.forEach(mod => {
-        matrix[risk][mod] = data.findings.filter(f => f.riskLevel === risk && f.module === mod).length;
-      });
-    });
-    return { matrix, modules };
-  }, [data.findings, data.enabledModules]);
-
+export const Dashboard: React.FC<DashboardProps> = ({ data, status, onOpenEvidence, maturityRatings, onMaturityRatingChange }) => {
+  const score = calculateMaturityScore(Object.fromEntries(SUPPORTED_MVP_MODULES.map(module => [module, { rating: maturityRatings[module], eligibleEvidenceCount: data.findings.filter(finding => finding.module === module && isEligibleEvidenceFinding(finding)).length }])) as Partial<Record<SupportedMvpModule, { rating?: number; eligibleEvidenceCount: number }>>);
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className={`rounded-3xl p-6 md:p-8 text-white relative shadow-xl border-b-4 ${data.assessmentType === AssessmentType.SECURITY_SOLUTION ? 'bg-blue-900 border-blue-700' : 'bg-slate-900 border-slate-700'}`}>
-          <div className="flex flex-col xl:flex-row justify-between items-start gap-6">
-            <div className="w-full xl:w-auto overflow-hidden">
-              <div className="flex items-center gap-2 mb-2 flex-wrap">
-                <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-tighter ${data.assessmentType === AssessmentType.SECURITY_SOLUTION ? 'bg-blue-500 text-white' : 'bg-emerald-500 text-white'}`}>
-                  {data.assessmentType} {data.solutionCategory ? `- ${data.solutionCategory}` : ''}
-                </span>
-              </div>
-              <h2 className="text-2xl md:text-3xl font-bold break-words">{data.projectName}</h2>
-              <p className="text-slate-400 text-base md:text-lg max-w-2xl font-light mt-2">Comprehensive cyber assurance and control validation for {data.systemOwner}.</p>
-              <div className="flex flex-wrap gap-3 mt-6">
-                <div className="px-3 py-1 bg-white/10 rounded-full text-[10px] font-bold uppercase tracking-widest border border-white/5">
-                  Started: {data.startDate}
-                </div>
-                <div className="px-3 py-1 bg-white/10 rounded-full text-[10px] font-bold uppercase tracking-widest border border-white/5">
-                  Scope: {data.systemScope.length} Assets
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-4 w-full xl:w-auto bg-black/20 p-4 md:p-6 rounded-2xl border border-white/5 items-center justify-between xl:justify-end">
-              <div className="text-center md:pr-4 md:border-r border-white/10 flex-1 md:flex-none">
-                <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Assurance Rating</span>
-                <span className={`text-4xl font-black ${overallScore > 85 ? 'text-emerald-400' : overallScore > 70 ? 'text-amber-400' : 'text-rose-400'}`}>
-                  {overallRating}
-                </span>
-              </div>
-              <div className="text-center pl-4 pr-4 border-r border-white/10 hidden md:block">
-                <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Maturity Score</span>
-                <span className={`text-3xl font-bold ${overallScore > 70 ? 'text-emerald-400' : overallScore > 40 ? 'text-amber-400' : 'text-rose-400'}`}>
-                  {overallScore}%
-                </span>
-              </div>
-               <div className="text-center pl-4">
-                <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">In-Scope Modules</span>
-                <span className="text-3xl font-bold text-blue-400">{data.enabledModules.length}</span>
-              </div>
-            </div>
-          </div>
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200">
-          <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest break-words">Critical Risks</span>
-          <div className="text-2xl md:text-3xl font-bold text-red-600 mt-1">{riskCounts[RiskLevel.CRITICAL]}</div>
+  <div className="space-y-6 sm:space-y-8">
+    <section className="rounded-3xl bg-slate-900 p-6 text-white shadow-xl sm:p-8">
+      <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-300">FortressAssureX · {data.mode === 'sample' ? 'sample assessment — synthetic data' : 'evidence register'}</p>
+      <div className="mt-3 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
+        <div>
+          <h2 className="text-2xl font-bold sm:text-3xl">{data.projectName}</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Scope owner: {data.systemOwner}. This workspace records assessor-entered findings and evidence; it makes no automated control-validation or compliance claim.</p>
         </div>
-        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200">
-          <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest break-words">High Risks</span>
-          <div className="text-2xl md:text-3xl font-bold text-orange-600 mt-1">{riskCounts[RiskLevel.HIGH]}</div>
-        </div>
-        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200">
-          <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest break-words">Medium Risks</span>
-          <div className="text-2xl md:text-3xl font-bold text-amber-500 mt-1">{riskCounts[RiskLevel.MEDIUM]}</div>
-        </div>
-        <div className="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200">
-          <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest break-words">Low Risks</span>
-          <div className="text-2xl md:text-3xl font-bold text-emerald-500 mt-1">{riskCounts[RiskLevel.LOW]}</div>
+        <div className="grid grid-cols-2 gap-3 text-sm">
+          <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3"><span className="block text-xs uppercase tracking-wider text-slate-400">Scope assets</span><strong className="text-xl">{data.systemScope.length}</strong></div>
+          <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3"><span className="block text-xs uppercase tracking-wider text-slate-400">Evidence records</span><strong className="text-xl">{data.findings.length}</strong></div>
         </div>
       </div>
+    </section>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-          <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center justify-between">
-            Control Maturity Radar
-          </h3>
-          <div className="h-80">
-            {radarData.length >= 3 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <RadarChart cx="50%" cy="50%" outerRadius="75%" data={radarData}>
-                  <PolarGrid stroke="#e2e8f0" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fontWeight: 'bold', fill: '#64748b' }} />
-                  <PolarRadiusAxis angle={30} domain={[0, 100]} />
-                  <Radar name="Control Level" dataKey="A" stroke="#0f172a" fill="#0f172a" fillOpacity={0.6} />
-                </RadarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-full text-slate-400 italic">
-                <svg className="w-12 h-12 mb-3 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg>
-                <p>Add 3+ modules to view radar analysis</p>
-              </div>
-            )}
-          </div>
-        </div>
+    {data.mode === 'sample' ? <section className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950" aria-label="Sample assessment notice"><p className="text-xs font-black uppercase tracking-[0.16em] opacity-70">Demonstration only</p><h3 className="mt-1 text-xl font-bold">Illustrative evidence records</h3><p className="mt-2 max-w-4xl text-sm leading-6">These synthetic records do not represent assessment findings, control validation, posture, or assurance for any real environment.</p></section> : <section className={`rounded-2xl border p-5 ${statusStyle[status.code]}`} aria-label="Assessment status"><p className="text-xs font-black uppercase tracking-[0.16em] opacity-70">Assessment status</p><h3 className="mt-1 text-xl font-bold">{status.label}</h3><p className="mt-2 max-w-4xl text-sm leading-6">{status.detail}</p><div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">{SUPPORTED_MVP_MODULES.map(module => <span key={module} className={`rounded-full px-3 py-1 ${status.coveredModules.includes(module) ? 'bg-cyan-700 text-white' : 'bg-white/70 text-slate-700 ring-1 ring-inset ring-slate-300'}`}>{module}: {status.coveredModules.includes(module) ? 'evidence recorded' : 'not assessed'}</span>)}</div></section>}
 
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 flex flex-col">
-          <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
-             <svg className="w-5 h-5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z" /></svg>
-             Risk Heat Map
-          </h3>
-          <div className="flex-1 overflow-x-auto">
-             <table className="w-full text-xs">
-              <thead>
-                <tr>
-                  <th className="text-left font-bold text-slate-400 pb-2 align-bottom">Severity</th>
-                  {heatMapData.modules.map(m => (
-                    <th key={m} className="pb-2 font-bold text-slate-500 text-center w-10 align-bottom pt-4 h-24">
-                      <div 
-                        className="mx-auto text-[10px] tracking-widest uppercase flex items-center justify-center h-full"
-                        style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}
-                      >
-                        {(m || '').split(' ')[0]}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {[RiskLevel.CRITICAL, RiskLevel.HIGH, RiskLevel.MEDIUM, RiskLevel.LOW].map(risk => (
-                  <tr key={risk} className="border-t border-slate-50">
-                    <td className="py-2 font-bold text-slate-700 pr-4">{risk}</td>
-                    {heatMapData.modules.map(mod => {
-                      const count = heatMapData.matrix[risk][mod];
-                      return (
-                        <td key={mod} className="p-1 text-center min-w-[2.5rem]">
-                          <div 
-                            className={`w-full h-8 rounded flex items-center justify-center font-bold text-white transition-all
-                              ${count === 0 ? 'bg-slate-50 text-slate-300' : 
-                                risk === RiskLevel.CRITICAL ? `bg-rose-600` : 
-                                risk === RiskLevel.HIGH ? `bg-orange-500` : 
-                                risk === RiskLevel.MEDIUM ? `bg-amber-400` : `bg-emerald-400`}
-                              ${count > 0 ? 'opacity-90 hover:opacity-100 scale-95 hover:scale-100 shadow-sm' : ''}
-                            `}
-                            style={{ opacity: count === 0 ? 0.3 : 0.6 + (count * 0.1) }}
-                          >
-                            {count > 0 ? count : '-'}
-                          </div>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+    <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      {findingCounts(data.findings).map(({ level, count }) => <div key={level} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"><RiskBadge level={level as RiskLevel} /><div className="mt-3 text-3xl font-bold text-slate-900">{count}</div><p className="text-xs text-slate-500">{data.mode === 'sample' ? 'synthetic records' : 'human-recorded findings'}</p></div>)}
+    </section>
+
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6" aria-label="Maturity score">
+      <div className="flex flex-wrap items-start justify-between gap-4"><div><h3 className="text-lg font-bold text-slate-900">Evidence maturity score</h3><p className="mt-1 text-sm text-slate-600">{score.valid ? `${score.score} / 5 · weighted component calculation` : 'Not scoreable yet · complete ratings and eligible evidence'}</p></div><span className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold text-slate-700">Assessor-entered · provisional</span></div>
+      <p className="mt-3 text-xs leading-5 text-slate-500">Formula: Σ(rating × 50%); ratings are 0–5. Missing or unknown ratings are not zero. Each module needs at least one valid evidence-backed finding. Evidence quantity affects eligibility only, not the score.</p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">{SUPPORTED_MVP_MODULES.map(module => { const evidenceCount = data.findings.filter(finding => finding.module === module && isEligibleEvidenceFinding(finding)).length; return <label key={module} className="rounded-xl border border-slate-200 p-4 text-sm font-semibold">{module}<select aria-label={`${module} maturity rating`} value={maturityRatings[module] ?? ''} onChange={event => onMaturityRatingChange(module, event.target.value === '' ? undefined : Number(event.target.value))} disabled={data.mode === 'sample'} className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-2"><option value="">Unknown / not rated</option>{[0, 1, 2, 3, 4, 5].map(rating => <option key={rating} value={rating}>{rating} / 5</option>)}</select><span className="mt-2 block text-xs font-normal text-slate-500">Eligible evidence: {evidenceCount}</span></label>; })}</div>
+      {score.valid && <div className="mt-4 rounded-xl border border-cyan-200 bg-cyan-50 p-4 text-sm text-cyan-950"><strong>Breakdown:</strong> {score.components.map(component => `${component.module} ${component.rating} × ${(component.weight * 100).toFixed(0)}% = ${component.contribution.toFixed(2)}`).join(' · ')}. This is a transparent, evidence-coverage-gated maturity indicator—not assurance, compliance, or control effectiveness.</div>}
+      {!score.valid && <p className="mt-4 text-xs text-amber-800">{score.reason}</p>}
+    </section>
+
+    <section className="grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-4"><div><h3 className="text-lg font-bold text-slate-900">Current MVP boundary</h3><p className="mt-1 text-sm text-slate-600">Only the modules below accept evidence-backed human findings. Every other domain remains explicitly unsupported.</p></div>{data.mode === 'sample' ? <span className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-bold text-amber-900">Read-only sample</span> : <button onClick={onOpenEvidence} className="rounded-lg bg-cyan-700 px-4 py-2 text-sm font-bold text-white hover:bg-cyan-800">Record evidence</button>}</div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">{SUPPORTED_MVP_MODULES.map(module => <div key={module} className="rounded-xl border border-cyan-200 bg-cyan-50 p-4"><p className="font-bold text-cyan-950">{module}</p><p className="mt-1 text-xs leading-5 text-cyan-900">Supported for evidence-linked human findings only.</p></div>)}</div>
       </div>
-    </div>
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"><h3 className="text-lg font-bold text-slate-900">Excluded outcomes</h3><ul className="mt-3 space-y-2 text-sm leading-6 text-slate-600"><li>• No automated control-validation or compliance claim</li><li>• No score when evidence coverage or ratings are unknown</li><li>• No findings inferred from text or parsed files</li></ul></div>
+    </section>
+  </div>
   );
 };

@@ -1,6 +1,6 @@
 {
-  "name": "FortressAssure: Banking Cybersecurity Engine",
-  "description": "A high-grade cybersecurity control and assurance assessment platform for financial institutions, featuring automated module-based risk analysis and executive reporting.",
+  "name": "FortressAssureX: Evidence-led Assessment MVP",
+  "description": "A browser-only register for evidence-linked human security findings. It does not perform automated control validation, scoring, assurance, or compliance attestation.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": ["Evidence-backed human finding intake for two MVP modules", "Explicit unsupported and not-assessed states"]
 }

@@ -1,22 +1,9 @@
-import React, { useMemo, useState } from 'react';
-import { AssessmentModule, AssessmentType, AssetType, Criticality, SolutionCategory, SystemAsset } from '../types';
-
-interface AssessmentSetupData {
-  projectName: string;
-  systemOwner: string;
-  assetCriticality: Criticality;
-  businessCriticality: Criticality;
-  systemCategory: 'Banking System' | 'Security Solution';
-  assessmentType: AssessmentType;
-  solutionCategory?: SolutionCategory;
-  startDate: string;
-  systemScope: SystemAsset[];
-  enabledModules: AssessmentModule[];
-}
+import React, { useState } from 'react';
+import { AssessmentType, AssetType, Criticality, SystemAsset, SystemCategory } from '../types';
 
 interface AssessmentSetupProps {
-  onInitialize: (data: AssessmentSetupData) => void;
-  onLoadSample?: () => void;
+  onInitialize: (data: Omit<import('../types').AssessmentState, 'findings' | 'isInitialized' | 'mode'>) => void;
+  onLoadSample: () => void;
 }
 
 type SetupStep = 0 | 1 | 2;
@@ -60,20 +47,24 @@ const parseScope = (raw: string): SystemAsset[] => raw.split(/\r?\n/).map(line =
 });
 
 export const AssessmentSetup: React.FC<AssessmentSetupProps> = ({ onInitialize, onLoadSample }) => {
-  const [step, setStep] = useState<SetupStep>(0);
-  const [assessmentType, setAssessmentType] = useState<AssessmentType>(AssessmentType.BANKING);
-  const [solutionCategory, setSolutionCategory] = useState<SolutionCategory>(SolutionCategory.SIEM);
   const [scopeRaw, setScopeRaw] = useState('');
-  const [scopeInfo, setScopeInfo] = useState<{ count: number; fileName: string } | null>(null);
-  const [selectedModules, setSelectedModules] = useState<AssessmentModule[]>(SUPPORTED_MODULES);
-  const [projectName, setProjectName] = useState('');
-  const [systemOwner, setSystemOwner] = useState('');
-  const [businessCriticality, setBusinessCriticality] = useState<Criticality>(Criticality.MEDIUM);
-  const [assetCriticality, setAssetCriticality] = useState<Criticality>(Criticality.MEDIUM);
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [formError, setFormError] = useState('');
 
-  const scopeCount = useMemo(() => parseScope(scopeRaw).length, [scopeRaw]);
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const systemScope: SystemAsset[] = scopeRaw
+      .split('\n')
+      .map(line => line.trim())
+      .filter(Boolean)
+      .map(line => {
+        const [ip, hostname, type, environment] = line.split(',').map(value => value.trim());
+        return {
+          ip: ip || undefined,
+          hostname: hostname || 'Unspecified asset',
+          type: (Object.values(AssetType).includes(type as AssetType) ? type : AssetType.SERVER) as AssetType,
+          environment: environment || 'Unspecified',
+        };
+      });
 
   const setModule = (module: AssessmentModule, enabled: boolean) => {
     if (!SUPPORTED_MODULES.includes(module)) return;
@@ -110,30 +101,31 @@ export const AssessmentSetup: React.FC<AssessmentSetupProps> = ({ onInitialize, 
 
     setFormError('');
     onInitialize({
-      projectName: trimmedProjectName,
-      systemOwner: trimmedSystemOwner,
-      assetCriticality,
-      businessCriticality,
-      systemCategory: assessmentType === AssessmentType.BANKING ? 'Banking System' : 'Security Solution',
-      assessmentType,
-      solutionCategory: assessmentType === AssessmentType.SECURITY_SOLUTION ? solutionCategory : undefined,
-      startDate,
-      systemScope: parseScope(scopeRaw),
-      enabledModules,
+      projectName: String(formData.get('projectName') || ''),
+      systemOwner: String(formData.get('systemOwner') || ''),
+      assetCriticality: formData.get('assetCriticality') as Criticality,
+      businessCriticality: formData.get('businessCriticality') as Criticality,
+      assessmentType: formData.get('assessmentType') as AssessmentType,
+      systemCategory: formData.get('assessmentType') === AssessmentType.SECURITY_SOLUTION
+        ? SystemCategory.SECURITY
+        : SystemCategory.BANKING,
+      startDate: String(formData.get('startDate') || ''),
+      systemScope,
     });
   };
 
   return (
-    <main className="min-h-screen bg-slate-900 px-4 py-6 font-inter sm:px-6 lg:py-10" aria-labelledby="setup-title">
-      <form onSubmit={handleSubmit} className="mx-auto w-full max-w-5xl overflow-hidden rounded-3xl bg-white shadow-2xl">
-        <header className="bg-slate-800 p-6 text-white sm:p-8">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-emerald-400">FortressAssure / supplied-context assessment</p>
-              <h1 id="setup-title" className="mt-2 text-2xl font-bold sm:text-3xl">Set up an assessment</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">Define the assessment boundary first. FortressAssure only uses the context and evidence you provide; it does not scan systems or connect to providers from this setup.</p>
-            </div>
-            {onLoadSample && <button type="button" onClick={onLoadSample} className="min-h-11 rounded-lg border border-emerald-400/40 bg-emerald-400/10 px-4 py-2 text-left text-xs font-bold text-emerald-300 hover:bg-emerald-400/20 focus:outline-none focus:ring-2 focus:ring-emerald-300 focus:ring-offset-2 focus:ring-offset-slate-800">Load local core banking sample<span className="mt-1 block font-normal text-emerald-200/80">Synthetic data only</span></button>}
+    <div className="min-h-screen bg-slate-950 p-4 sm:p-8 flex items-center justify-center font-sans">
+      <form onSubmit={handleSubmit} className="w-full max-w-3xl overflow-hidden rounded-3xl border border-slate-700 bg-white shadow-2xl">
+        <div className="bg-slate-900 px-6 py-7 sm:px-10 sm:py-9 text-white">
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-cyan-300">Evidence-led MVP</p>
+          <h1 className="mt-2 text-2xl font-bold sm:text-3xl">Start an evidence register</h1>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">FortressAssureX records human findings linked to supplied evidence. It does not validate controls, calculate posture, or provide a compliance attestation.</p>
+        </div>
+
+        <div className="space-y-6 p-6 sm:p-10">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+            <strong>Current boundary:</strong> evidence intake is available only for Architecture &amp; Network and Vulnerability &amp; Exposure. Other domains are shown as not supported in this MVP.
           </div>
           <nav aria-label="Assessment setup progress" className="mt-8">
             <ol className="grid grid-cols-3 gap-2 sm:gap-4">
@@ -147,43 +139,44 @@ export const AssessmentSetup: React.FC<AssessmentSetupProps> = ({ onInitialize, 
           </nav>
         </header>
 
-        <div className="grid gap-8 p-5 sm:p-8 lg:grid-cols-[minmax(0,1fr)_18rem]">
-          <section className="min-w-0" aria-live="polite">
-            {step === 0 && <fieldset className="space-y-6">
-              <legend className="text-xl font-bold text-slate-900">Assessment identity</legend>
-              <p className="text-sm text-slate-500">Name the system or solution and identify the accountable owner.</p>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className="space-y-2 text-sm font-semibold text-slate-700">Project or solution name<input name="projectName" value={projectName} onChange={event => setProjectName(event.target.value)} required autoFocus className="min-h-12 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 font-normal outline-none focus:ring-2 focus:ring-slate-800" placeholder="e.g. Swift Gateway v2" /></label>
-                <label className="space-y-2 text-sm font-semibold text-slate-700">System or solution owner<input name="systemOwner" value={systemOwner} onChange={event => setSystemOwner(event.target.value)} required className="min-h-12 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 font-normal outline-none focus:ring-2 focus:ring-slate-800" placeholder="Department / accountable manager" /></label>
-              </div>
-              <fieldset className="space-y-3"><legend className="text-sm font-semibold text-slate-700">Assessment context</legend><div className="grid gap-3 sm:grid-cols-2">
-                {[AssessmentType.BANKING, AssessmentType.SECURITY_SOLUTION].map(type => <button key={type} type="button" aria-pressed={assessmentType === type} onClick={() => setAssessmentType(type)} className={`min-h-24 rounded-2xl border-2 p-4 text-left text-sm font-bold focus:outline-none focus:ring-2 focus:ring-slate-800 ${assessmentType === type ? 'border-emerald-500 bg-emerald-50 text-emerald-900' : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300'}`}>{type}<span className="mt-1 block text-xs font-normal opacity-75">{type === AssessmentType.BANKING ? 'A banking system, application, or service' : 'A security product or control solution'}</span></button>)}
-              </div></fieldset>
-              {assessmentType === AssessmentType.SECURITY_SOLUTION && <label className="block space-y-2 text-sm font-semibold text-slate-700">Solution category<select value={solutionCategory} onChange={event => setSolutionCategory(event.target.value as SolutionCategory)} className="min-h-12 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 outline-none focus:ring-2 focus:ring-blue-500">{Object.values(SolutionCategory).map(category => <option key={category}>{category}</option>)}</select></label>}
-            </fieldset>}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block text-sm font-semibold text-slate-700">Project name
+              <input name="projectName" required className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-cyan-700 focus:ring-2 focus:ring-cyan-100" placeholder="e.g. Payments gateway review" />
+            </label>
+            <label className="block text-sm font-semibold text-slate-700">System owner
+              <input name="systemOwner" required className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-cyan-700 focus:ring-2 focus:ring-cyan-100" placeholder="Team or accountable owner" />
+            </label>
+          </div>
 
-            {step === 1 && <fieldset className="space-y-6">
-              <legend className="text-xl font-bold text-slate-900">Criticality and timing</legend>
-              <p className="text-sm text-slate-500">Record the supplied business context. These selections do not claim an independent risk or compliance determination.</p>
-              <div className="grid gap-4 sm:grid-cols-2"><label className="space-y-2 text-sm font-semibold text-slate-700">Business criticality<select name="businessCriticality" value={businessCriticality} onChange={event => setBusinessCriticality(event.target.value as Criticality)} className="min-h-12 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 outline-none focus:ring-2 focus:ring-slate-800">{Object.values(Criticality).map(value => <option key={value}>{value}</option>)}</select></label><label className="space-y-2 text-sm font-semibold text-slate-700">Data / asset criticality<select name="assetCriticality" value={assetCriticality} onChange={event => setAssetCriticality(event.target.value as Criticality)} className="min-h-12 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 outline-none focus:ring-2 focus:ring-slate-800">{Object.values(Criticality).map(value => <option key={value}>{value}</option>)}</select></label></div>
-              <label className="block space-y-2 text-sm font-semibold text-slate-700">Assessment start date<input type="date" name="startDate" value={startDate} onChange={event => setStartDate(event.target.value)} className="min-h-12 w-full rounded-xl border border-slate-300 bg-slate-50 p-3 outline-none focus:ring-2 focus:ring-slate-800" /></label>
-              <aside className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-900"><strong>Boundary note:</strong> Criticality is recorded as supplied context. It is not a calculated posture, certification, attestation, or external validation.</aside>
-            </fieldset>}
+          <div className="grid gap-4 sm:grid-cols-3">
+            <label className="block text-sm font-semibold text-slate-700">Assessment context
+              <select name="assessmentType" defaultValue={AssessmentType.BANKING} className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5">
+                {Object.values(AssessmentType).map(type => <option key={type} value={type}>{type}</option>)}
+              </select>
+            </label>
+            <label className="block text-sm font-semibold text-slate-700">Business criticality
+              <select name="businessCriticality" defaultValue={Criticality.MEDIUM} className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5">
+                {Object.values(Criticality).map(level => <option key={level} value={level}>{level}</option>)}
+              </select>
+            </label>
+            <label className="block text-sm font-semibold text-slate-700">Data criticality
+              <select name="assetCriticality" defaultValue={Criticality.MEDIUM} className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5">
+                {Object.values(Criticality).map(level => <option key={level} value={level}>{level}</option>)}
+              </select>
+            </label>
+          </div>
 
-            {step === 2 && <fieldset className="space-y-6">
-              <legend className="text-xl font-bold text-slate-900">Scope and evidence boundary</legend>
-              <p className="text-sm text-slate-500">Provide an optional local inventory. CSV rows are interpreted as IP, Hostname, Type, Environment and remain in memory until launch.</p>
-              <label className="block space-y-2 text-sm font-semibold text-slate-700">Asset inventory (CSV or plain text)<textarea value={scopeRaw} onChange={event => { setScopeRaw(event.target.value); setScopeInfo(null); }} rows={5} className="w-full rounded-xl border border-slate-300 bg-slate-50 p-3 font-mono text-xs outline-none focus:ring-2 focus:ring-slate-800" placeholder="10.0.0.10, core-api, Application, Production" /><span className="block text-xs font-normal text-slate-500">{scopeCount} supplied row{scopeCount === 1 ? '' : 's'} · no network lookup or scan is performed</span></label>
-              <label className="flex min-h-14 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 text-center text-sm font-semibold text-slate-700 hover:border-emerald-400 focus-within:ring-2 focus-within:ring-slate-800">{scopeInfo ? <span className="text-emerald-700">Loaded locally: {scopeInfo.fileName} ({scopeInfo.count} rows)</span> : <span>Choose a local CSV / TXT file (optional)</span>}<input type="file" accept=".csv,.txt,text/csv,text/plain" onChange={handleFileChange} className="sr-only" /></label>
-              <fieldset className="space-y-3"><legend className="text-sm font-semibold text-slate-700">Assessment domains</legend><div className="grid gap-2 sm:grid-cols-2">{SUPPORTED_MODULES.map(module => <label key={module} className="flex min-h-11 items-center gap-3 rounded-lg border border-slate-200 px-3 text-sm text-slate-700 has-[:checked]:border-emerald-400 has-[:checked]:bg-emerald-50"><input type="checkbox" checked={selectedModules.includes(module)} onChange={event => setModule(module, event.target.checked)} className="h-4 w-4 accent-emerald-600" />{module}</label>)}</div></fieldset>
-              <fieldset className="space-y-3"><legend className="text-sm font-semibold text-slate-700">Unavailable domains</legend><div className="grid gap-2 sm:grid-cols-2">{unsupportedModules.map(({ name, reason }) => <button key={name} type="button" disabled title={reason} aria-disabled="true" className="min-h-11 cursor-not-allowed rounded-lg border border-slate-200 bg-slate-100 px-3 text-left text-sm text-slate-400"><span className="block line-through">{name}</span><span className="block text-[10px]">Unavailable in this release</span></button>)}</div></fieldset>
-            </fieldset>}
-            {formError && <p role="alert" className="mt-5 rounded-lg bg-rose-50 p-3 text-sm font-semibold text-rose-700">{formError}</p>}
+          <label className="block text-sm font-semibold text-slate-700">Start date
+            <input name="startDate" type="date" required className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5" />
+          </label>
 
-            <div className="mt-8 flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-between"><button type="button" disabled={step === 0} onClick={() => setStep(current => (current - 1) as SetupStep)} className="min-h-12 rounded-xl border border-slate-300 px-5 text-sm font-bold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-slate-800">Back</button><button type="submit" className="min-h-12 rounded-xl bg-emerald-600 px-6 text-sm font-bold text-white shadow-lg shadow-emerald-900/20 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:ring-offset-2">{step === 2 ? 'Create local assessment' : 'Continue'}</button></div>
-          </section>
+          <label className="block text-sm font-semibold text-slate-700">Optional asset inventory
+            <span className="mt-1 block text-xs font-normal leading-5 text-slate-500">Paste one asset per line as <code>IP, hostname, asset type, environment</code>. This is scope context only; it is not scanned or verified.</span>
+            <textarea value={scopeRaw} onChange={event => setScopeRaw(event.target.value)} rows={4} className="mt-2 w-full rounded-xl border border-slate-300 p-3 font-mono text-xs outline-none focus:border-cyan-700 focus:ring-2 focus:ring-cyan-100" placeholder="10.0.0.10, edge-fw-01, Network Device, Production" />
+          </label>
 
-          <aside className="h-fit rounded-2xl border border-slate-200 bg-slate-50 p-4 lg:sticky lg:top-6" aria-label="Assessment summary"><h2 className="text-xs font-black uppercase tracking-widest text-slate-500">Setup summary</h2><dl className="mt-4 space-y-4 text-sm"><div><dt className="text-xs text-slate-500">Context</dt><dd className="font-semibold text-slate-800">{assessmentType === AssessmentType.BANKING ? 'Banking system' : 'Security solution'}</dd></div>{assessmentType === AssessmentType.SECURITY_SOLUTION && <div><dt className="text-xs text-slate-500">Category</dt><dd className="font-semibold text-slate-800">{solutionCategory}</dd></div>}<div><dt className="text-xs text-slate-500">Supplied assets</dt><dd className="font-semibold text-slate-800">{scopeCount}</dd></div><div><dt className="text-xs text-slate-500">Enabled domains</dt><dd className="font-semibold text-slate-800">{selectedModules.filter(module => SUPPORTED_MODULES.includes(module)).length}</dd></div></dl><p className="mt-6 border-t border-slate-200 pt-4 text-xs leading-5 text-slate-500">No persistence, scanning, provider calls, or data egress is performed by this flow.</p></aside>
+          <button type="submit" className="w-full rounded-xl bg-cyan-700 px-5 py-3 font-bold text-white transition hover:bg-cyan-800 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2">Create evidence register</button>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-center"><p className="text-sm font-semibold text-slate-800">Want to explore the workspace first?</p><p className="mt-1 text-sm text-slate-600">Load a read-only synthetic demonstration. No assessment is performed and no evidence is collected.</p><button type="button" onClick={onLoadSample} className="mt-3 rounded-xl border border-slate-300 bg-white px-5 py-2.5 text-sm font-bold text-slate-800 hover:border-cyan-700 hover:text-cyan-800">Load sample assessment</button></div>
         </div>
       </form>
     </main>
