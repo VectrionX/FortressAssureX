@@ -27,7 +27,7 @@ const steps = [
   { name: 'Scope & evidence', description: 'Supplied assets and domains' },
 ] as const;
 
-const supportedModules = [
+export const SUPPORTED_MODULES = [
   AssessmentModule.ARCHITECTURE,
   AssessmentModule.IDENTITY,
   AssessmentModule.VULNERABILITY,
@@ -65,7 +65,7 @@ export const AssessmentSetup: React.FC<AssessmentSetupProps> = ({ onInitialize, 
   const [solutionCategory, setSolutionCategory] = useState<SolutionCategory>(SolutionCategory.SIEM);
   const [scopeRaw, setScopeRaw] = useState('');
   const [scopeInfo, setScopeInfo] = useState<{ count: number; fileName: string } | null>(null);
-  const [selectedModules, setSelectedModules] = useState<AssessmentModule[]>(supportedModules);
+  const [selectedModules, setSelectedModules] = useState<AssessmentModule[]>(SUPPORTED_MODULES);
   const [projectName, setProjectName] = useState('');
   const [systemOwner, setSystemOwner] = useState('');
   const [businessCriticality, setBusinessCriticality] = useState<Criticality>(Criticality.MEDIUM);
@@ -76,7 +76,8 @@ export const AssessmentSetup: React.FC<AssessmentSetupProps> = ({ onInitialize, 
   const scopeCount = useMemo(() => parseScope(scopeRaw).length, [scopeRaw]);
 
   const setModule = (module: AssessmentModule, enabled: boolean) => {
-    setSelectedModules(current => enabled ? [...current, module] : current.filter(item => item !== module));
+    if (!SUPPORTED_MODULES.includes(module)) return;
+    setSelectedModules(current => enabled ? [...new Set([...current, module])] : current.filter(item => item !== module));
   };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -101,7 +102,8 @@ export const AssessmentSetup: React.FC<AssessmentSetupProps> = ({ onInitialize, 
       setFormError('Project name and owner are required before launch.');
       return;
     }
-    if (selectedModules.length === 0) {
+    const enabledModules = selectedModules.filter(module => SUPPORTED_MODULES.includes(module));
+    if (enabledModules.length === 0) {
       setFormError('Select at least one supported assessment domain.');
       return;
     }
@@ -117,7 +119,7 @@ export const AssessmentSetup: React.FC<AssessmentSetupProps> = ({ onInitialize, 
       solutionCategory: assessmentType === AssessmentType.SECURITY_SOLUTION ? solutionCategory : undefined,
       startDate,
       systemScope: parseScope(scopeRaw),
-      enabledModules: selectedModules,
+      enabledModules,
     });
   };
 
@@ -173,7 +175,7 @@ export const AssessmentSetup: React.FC<AssessmentSetupProps> = ({ onInitialize, 
               <p className="text-sm text-slate-500">Provide an optional local inventory. CSV rows are interpreted as IP, Hostname, Type, Environment and remain in memory until launch.</p>
               <label className="block space-y-2 text-sm font-semibold text-slate-700">Asset inventory (CSV or plain text)<textarea value={scopeRaw} onChange={event => { setScopeRaw(event.target.value); setScopeInfo(null); }} rows={5} className="w-full rounded-xl border border-slate-300 bg-slate-50 p-3 font-mono text-xs outline-none focus:ring-2 focus:ring-slate-800" placeholder="10.0.0.10, core-api, Application, Production" /><span className="block text-xs font-normal text-slate-500">{scopeCount} supplied row{scopeCount === 1 ? '' : 's'} · no network lookup or scan is performed</span></label>
               <label className="flex min-h-14 cursor-pointer items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 px-4 text-center text-sm font-semibold text-slate-700 hover:border-emerald-400 focus-within:ring-2 focus-within:ring-slate-800">{scopeInfo ? <span className="text-emerald-700">Loaded locally: {scopeInfo.fileName} ({scopeInfo.count} rows)</span> : <span>Choose a local CSV / TXT file (optional)</span>}<input type="file" accept=".csv,.txt,text/csv,text/plain" onChange={handleFileChange} className="sr-only" /></label>
-              <fieldset className="space-y-3"><legend className="text-sm font-semibold text-slate-700">Assessment domains</legend><div className="grid gap-2 sm:grid-cols-2">{supportedModules.map(module => <label key={module} className="flex min-h-11 items-center gap-3 rounded-lg border border-slate-200 px-3 text-sm text-slate-700 has-[:checked]:border-emerald-400 has-[:checked]:bg-emerald-50"><input type="checkbox" checked={selectedModules.includes(module)} onChange={event => setModule(module, event.target.checked)} className="h-4 w-4 accent-emerald-600" />{module}</label>)}</div></fieldset>
+              <fieldset className="space-y-3"><legend className="text-sm font-semibold text-slate-700">Assessment domains</legend><div className="grid gap-2 sm:grid-cols-2">{SUPPORTED_MODULES.map(module => <label key={module} className="flex min-h-11 items-center gap-3 rounded-lg border border-slate-200 px-3 text-sm text-slate-700 has-[:checked]:border-emerald-400 has-[:checked]:bg-emerald-50"><input type="checkbox" checked={selectedModules.includes(module)} onChange={event => setModule(module, event.target.checked)} className="h-4 w-4 accent-emerald-600" />{module}</label>)}</div></fieldset>
               <fieldset className="space-y-3"><legend className="text-sm font-semibold text-slate-700">Unavailable domains</legend><div className="grid gap-2 sm:grid-cols-2">{unsupportedModules.map(({ name, reason }) => <button key={name} type="button" disabled title={reason} aria-disabled="true" className="min-h-11 cursor-not-allowed rounded-lg border border-slate-200 bg-slate-100 px-3 text-left text-sm text-slate-400"><span className="block line-through">{name}</span><span className="block text-[10px]">Unavailable in this release</span></button>)}</div></fieldset>
             </fieldset>}
             {formError && <p role="alert" className="mt-5 rounded-lg bg-rose-50 p-3 text-sm font-semibold text-rose-700">{formError}</p>}
@@ -181,7 +183,7 @@ export const AssessmentSetup: React.FC<AssessmentSetupProps> = ({ onInitialize, 
             <div className="mt-8 flex flex-col-reverse gap-3 border-t border-slate-200 pt-6 sm:flex-row sm:justify-between"><button type="button" disabled={step === 0} onClick={() => setStep(current => (current - 1) as SetupStep)} className="min-h-12 rounded-xl border border-slate-300 px-5 text-sm font-bold text-slate-700 disabled:cursor-not-allowed disabled:opacity-40 focus:outline-none focus:ring-2 focus:ring-slate-800">Back</button><button type="submit" className="min-h-12 rounded-xl bg-emerald-600 px-6 text-sm font-bold text-white shadow-lg shadow-emerald-900/20 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:ring-offset-2">{step === 2 ? 'Create local assessment' : 'Continue'}</button></div>
           </section>
 
-          <aside className="h-fit rounded-2xl border border-slate-200 bg-slate-50 p-4 lg:sticky lg:top-6" aria-label="Assessment summary"><h2 className="text-xs font-black uppercase tracking-widest text-slate-500">Setup summary</h2><dl className="mt-4 space-y-4 text-sm"><div><dt className="text-xs text-slate-500">Context</dt><dd className="font-semibold text-slate-800">{assessmentType === AssessmentType.BANKING ? 'Banking system' : 'Security solution'}</dd></div>{assessmentType === AssessmentType.SECURITY_SOLUTION && <div><dt className="text-xs text-slate-500">Category</dt><dd className="font-semibold text-slate-800">{solutionCategory}</dd></div>}<div><dt className="text-xs text-slate-500">Supplied assets</dt><dd className="font-semibold text-slate-800">{scopeCount}</dd></div><div><dt className="text-xs text-slate-500">Enabled domains</dt><dd className="font-semibold text-slate-800">{selectedModules.length}</dd></div></dl><p className="mt-6 border-t border-slate-200 pt-4 text-xs leading-5 text-slate-500">No persistence, scanning, provider calls, or data egress is performed by this flow.</p></aside>
+          <aside className="h-fit rounded-2xl border border-slate-200 bg-slate-50 p-4 lg:sticky lg:top-6" aria-label="Assessment summary"><h2 className="text-xs font-black uppercase tracking-widest text-slate-500">Setup summary</h2><dl className="mt-4 space-y-4 text-sm"><div><dt className="text-xs text-slate-500">Context</dt><dd className="font-semibold text-slate-800">{assessmentType === AssessmentType.BANKING ? 'Banking system' : 'Security solution'}</dd></div>{assessmentType === AssessmentType.SECURITY_SOLUTION && <div><dt className="text-xs text-slate-500">Category</dt><dd className="font-semibold text-slate-800">{solutionCategory}</dd></div>}<div><dt className="text-xs text-slate-500">Supplied assets</dt><dd className="font-semibold text-slate-800">{scopeCount}</dd></div><div><dt className="text-xs text-slate-500">Enabled domains</dt><dd className="font-semibold text-slate-800">{selectedModules.filter(module => SUPPORTED_MODULES.includes(module)).length}</dd></div></dl><p className="mt-6 border-t border-slate-200 pt-4 text-xs leading-5 text-slate-500">No persistence, scanning, provider calls, or data egress is performed by this flow.</p></aside>
         </div>
       </form>
     </main>

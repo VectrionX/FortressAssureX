@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AssessmentModule, RiskLevel, Finding, AssessmentState, Criticality, SystemCategory, AssessmentType } from './types';
 import { AssessmentSetup } from './components/AssessmentSetup';
+import { SUPPORTED_MODULES } from './components/AssessmentSetup';
 
 const INITIAL_MODULE_SCORES = Object.values(AssessmentModule).reduce((acc, module) => {
   acc[module] = 0;
@@ -12,7 +13,7 @@ const emptyState = (): AssessmentState => ({
   businessCriticality: Criticality.MEDIUM, systemCategory: SystemCategory.BANKING,
   assessmentType: AssessmentType.BANKING, startDate: new Date().toISOString().slice(0, 10),
   systemScope: [], findings: [], moduleScores: INITIAL_MODULE_SCORES,
-  enabledModules: Object.values(AssessmentModule), isInitialized: false
+  enabledModules: SUPPORTED_MODULES, isInitialized: false
 });
 
 const App: React.FC = () => {
@@ -20,22 +21,26 @@ const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'evidence' | 'register' | 'method'>('overview');
   const [form, setForm] = useState({ module: AssessmentModule.ARCHITECTURE, title: '', observation: '', evidence: '', impact: '', recommendation: '', riskLevel: RiskLevel.INFORMATIONAL, owner: '' });
 
-  const handleInitialize = (initData: any) => setState(prev => ({ ...prev, ...initData, isInitialized: true }));
+  const handleInitialize = (initData: any) => setState(prev => ({ ...prev, ...initData, enabledModules: initData.enabledModules.filter((module: AssessmentModule) => SUPPORTED_MODULES.includes(module)), isInitialized: true }));
   const handleLoadSample = () => setState({ ...emptyState(), projectName: 'Synthetic evidence workspace', systemOwner: 'User-supplied example', isInitialized: true });
   const updateForm = (key: string, value: string) => setForm(prev => ({ ...prev, [key]: value }));
   const addFinding = (event: React.FormEvent) => {
     event.preventDefault();
-    if (!form.title.trim() || !form.evidence.trim()) return;
+    if (!SUPPORTED_MODULES.includes(form.module) || !form.title.trim() || !form.evidence.trim()) return;
     const finding: Finding = { id: `evidence-${Date.now()}`, module: form.module, title: form.title.trim(), observation: form.observation.trim() || undefined, evidence: form.evidence.trim(), impact: form.impact.trim() || 'Impact not assessed; record the consequence supplied by the assessor.', recommendation: form.recommendation.trim() || 'Record the owner-supplied next action.', riskLevel: form.riskLevel, owner: form.owner.trim() || undefined, status: 'Open' };
     setState(prev => ({ ...prev, findings: [...prev.findings, finding] }));
     setForm(prev => ({ ...prev, title: '', observation: '', evidence: '', impact: '', recommendation: '', owner: '' }));
     setActiveTab('register');
   };
 
-  if (!state.isInitialized) return <AssessmentSetup onInitialize={handleInitialize} onLoadSample={handleLoadSample} />;
+  if (!state.isInitialized) {
+    if (window.location.pathname !== '/') return <NotFound />;
+    return <AssessmentSetup onInitialize={handleInitialize} onLoadSample={handleLoadSample} />;
+  }
   const counts = Object.values(RiskLevel).reduce((acc, level) => ({ ...acc, [level]: state.findings.filter(f => f.riskLevel === level).length }), {} as Record<RiskLevel, number>);
   const tabs = [['overview', 'Overview'], ['evidence', 'Add evidence'], ['register', 'Evidence ledger'], ['method', 'Method & limits']] as const;
 
+  if (window.location.pathname !== '/') return <NotFound />;
   return <div className="min-h-screen bg-slate-50 text-slate-900">
     <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur"><div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4">
       <div><p className="text-xs font-bold uppercase tracking-[.2em] text-indigo-700">FortressAssureX</p><h1 className="text-lg font-bold">Evidence register</h1><p className="text-xs text-slate-500">{state.projectName} · user-supplied evidence only</p></div>
@@ -58,4 +63,5 @@ const App: React.FC = () => {
     </main>
   </div>;
 };
+const NotFound: React.FC = () => <main className="grid min-h-screen place-items-center bg-slate-900 px-6 text-center text-white"><div><p className="text-sm font-bold uppercase tracking-widest text-emerald-300">FortressAssureX</p><h1 className="mt-3 text-3xl font-bold">Page not found</h1><p className="mt-3 text-slate-300">The evidence register is available at the canonical root page.</p><a className="mt-6 inline-block rounded-lg bg-white px-4 py-2 font-semibold text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300" href="/">Return to FortressAssureX</a></div></main>;
 export default App;
