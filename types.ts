@@ -1,25 +1,46 @@
+
 export enum RiskLevel {
   CRITICAL = 'CRITICAL',
   HIGH = 'HIGH',
   MEDIUM = 'MEDIUM',
   LOW = 'LOW',
-  INFORMATIONAL = 'INFORMATIONAL',
+  INFORMATIONAL = 'INFORMATIONAL'
 }
 
 export enum Criticality {
   HIGH = 'HIGH',
   MEDIUM = 'MEDIUM',
-  LOW = 'LOW',
+  LOW = 'LOW'
 }
 
 export enum AssessmentType {
-  BANKING = 'Banking system or application',
-  SECURITY_SOLUTION = 'Security solution',
+  BANKING = 'Banking System Assessment',
+  SECURITY_SOLUTION = 'Security Solution Assessment'
+}
+
+export enum SolutionCategory {
+  SIEM = 'SIEM',
+  EDR = 'EDR',
+  XDR = 'XDR',
+  SOAR = 'SOAR',
+  PAM = 'PAM',
+  IAM = 'IAM',
+  FIREWALL = 'Firewall',
+  WAF = 'WAF',
+  DLP = 'DLP',
+  CASB = 'CASB',
+  PROXY = 'Proxy',
+  EMAIL_SECURITY = 'Email Security',
+  THREAT_INTEL = 'Threat Intelligence',
+  VULN_SCANNER = 'Vulnerability Scanner',
+  NAC = 'NAC',
+  CLOUD_SECURITY = 'Cloud Security Platform',
+  OTHER = 'Other'
 }
 
 export enum SystemCategory {
   BANKING = 'Banking System',
-  SECURITY = 'Security Solution',
+  SECURITY = 'Security Solution'
 }
 
 export enum AssessmentModule {
@@ -38,7 +59,7 @@ export enum AssessmentModule {
   BUSINESS_CONTINUITY = 'Business Continuity & Resilience',
   THIRD_PARTY = 'Third-Party Risk',
   GOVERNANCE = 'Governance & GRC',
-  OTHER = 'Other Observations',
+  OTHER = 'Other Observations'
 }
 
 export enum AssetType {
@@ -56,14 +77,7 @@ export enum AssetType {
   THIRD_PARTY = 'Third Party',
   DATA_REPOSITORY = 'Data Repository',
   SECURITY_SOLUTION = 'Security Solution',
-  EXTERNAL_INTEGRATION = 'External Integration',
-}
-
-export interface SystemAsset {
-  ip?: string;
-  hostname: string;
-  type?: AssetType;
-  environment?: string;
+  EXTERNAL_INTEGRATION = 'External Integration'
 }
 
 export interface Finding {
@@ -71,25 +85,41 @@ export interface Finding {
   module: AssessmentModule;
   title: string;
   riskLevel: RiskLevel;
-  observation: string;
-  evidenceReference: string;
-  evidenceExcerpt: string;
+  riskScore?: number;
+  observation?: string;
+  evidence?: string;
   impact: string;
+  likelihood?: string;
+  rootCause?: string;
   recommendation: string;
-  status: 'Recorded — human review required';
-  recordedAt: string;
+  owner?: string;
+  dueDate?: string;
+  status: 'Open' | 'Mitigated' | 'Accepted' | 'Closed' | 'In Progress';
+  frameworks?: string[];
+}
+
+export interface SystemAsset {
+  ip?: string;
+  hostname: string;
+  type?: AssetType;
+  environment?: string;
+  businessCritical?: boolean;
+  internetFacing?: boolean;
 }
 
 export interface AssessmentState {
-  mode: 'live' | 'sample';
   projectName: string;
   systemOwner: string;
   assetCriticality: Criticality;
   businessCriticality: Criticality;
   systemCategory: SystemCategory;
   assessmentType: AssessmentType;
+  solutionCategory?: SolutionCategory;
   startDate: string;
   systemScope: SystemAsset[];
   findings: Finding[];
+  moduleScores: Record<AssessmentModule, number>;
+  enabledModules: AssessmentModule[];
   isInitialized: boolean;
 }
+

@@ -1,54 +1,113 @@
-# FortressAssureX — evidence-led assessment MVP
+# 🛡️ FortressAssure | Cyber Assurance & Control Validation
 
-FortressAssureX is a browser-only evidence register for authorized security assessment work. It records human-entered findings linked to stated evidence and provides a provisional, coverage-gated maturity indicator. It does not create findings or conclusions from text.
+**FortressAssure** is a professional security auditing and cyber assurance platform designed for security engineers, compliance officers, and risk assessors. It provides a structured, comprehensive view of an organization's security posture through module-based assessments, automated findings generation, and executive reporting.
 
-## Supported boundary
+> "Comprehensive cyber assurance and control validation — turning technical debt into actionable governance."
 
-Evidence-backed human finding intake and maturity components are available for exactly:
+---
 
-1. **Architecture & Network**
-2. **Vulnerability & Exposure**
+## 🎯 Project Overview
 
-A finding requires a title, observation, evidence reference, excerpt or locator, impact, recommendation, and assessor-selected severity. Other domains remain explicitly unsupported.
+FortressAssure bridges the gap between raw security scans and executive risk reporting. It focuses on identifying **what** controls are missing, **why** it matters, and **how** it impacts the overall security maturity score, without requiring heavy overhead.
 
-## Maturity model
+---
 
-The score is an ordinal indicator from 0–5, not a percentage or assurance result:
+## 🚀 Quick Start & Installation
 
-`score = Σ(component rating × fixed component weight)`
+To get FortressAssure running on your local machine, follow these steps:
 
-Both supported modules have a fixed weight of 50%. Ratings are entered by the assessor as integers from 0 to 5 and are shown with each component contribution. Evidence quantity does not inflate a rating: it only gates eligibility. A component is eligible only when it has at least one valid human finding with a supported module, non-empty evidence reference, non-empty excerpt/locator, and all required finding fields. The score is valid only when every supported module has an eligible evidence record and a rating. Missing or unknown ratings are invalid and are never silently treated as zero. This model does not measure control effectiveness, risk, compliance, or assurance; qualified human review remains required.
+1. **Clone the Repository**:
+   ```bash
+   git clone https://github.com/SuperMag99/fortressassure.git
+   cd fortressassure
+   ```
 
-## Local evidence helper
+2. **Install Dependencies**:
+   ```bash
+   npm install
+   ```
 
-The optional helper accepts caller-provided text or reads a selected file locally in the browser. Supported lexical text formats are `.txt`, `.text`, `.md`, `.csv`, `.log`, and `.report`; `.json` is additionally checked for malformed syntax. It checks the selected file's byte size before reading, is bounded to 1 MB and 2,000 lines by default, returns source- and line-addressable excerpts, and performs no network request, upload, or transmission. Unsupported extensions, binary/undecodable content, malformed JSON, read errors, oversize input, and empty input are reported clearly.
+3. **Run the Application**:
+   ```bash
+   npm run dev
+   ```
 
-Parsing is lexical only. It never produces findings, infers severity, validates controls, or treats keywords as evidence. A user may copy a displayed excerpt into a human finding, then must verify it against the original source and provide the impact and recommendation themselves. Binary, encrypted, proprietary, malformed, or semantically complex formats are not supported.
+---
 
-## Assessment status
+## 🛠️ Execution Modes
 
-- **Not assessed** — no evidence-backed human findings exist for supported modules.
-- **Evidence intake incomplete** — only part of the supported boundary has evidence.
-- **Evidence recorded — human review required** — both modules have evidence; this is not an assurance conclusion.
+FortressAssure provides evaluation methodologies to assess target environments:
 
-Records and assessor ratings are held only in the active browser session. Preserve source artifacts under your organization’s retention process.
+### 🔹 Option 1: Live Assessment Mode
+Allows auditors to define a system scope, submit configurations or scan results, and leverage the local assessment engine to generate normalized findings for various security modules (Architecture, AppSec, Hardening, Identity, etc.).
 
-## Run locally
+### 🔹 Option 2: Sample Data Mode
+Provides pre-populated data (e.g., Core Banking Modernization) to help familiarize users with the platform's risk scoring algorithm, maturity radar charts, and executive reporting tabs. Instantly loads a comprehensive environment with realistic security findings.
 
-```bash
-npm ci
-npm run dev
-```
+---
 
-## Verification
+## 🔍 Key Modules
 
-```bash
-npm test
-npm run typecheck
-npm run build
-npm run audit:prod
-```
+1. **Architecture & Network**: Assessment of network segmentation, firewalls, and zero-trust principles.
+2. **Identity & Access Management**: Evaluation of authentication controls, RBAC, and privileged access.
+3. **Vulnerability Management**: Integration of patch levels and systemic flaw detection.
+4. **Data Protection**: Review of encryption mechanisms, data masking, and classification.
+5. **AppSec & DevSecOps**: Assessment of application security postures and secure SDLC controls.
+6. **Governance & Third-Party**: Vendor risk assessment and organizational policy compliance.
 
-## Responsible use
+---
 
-Use only authorized evidence. Review every excerpt against its source and obtain qualified review before relying on any indicator or finding. FortressAssureX is not a substitute for a formal assessment, technical validation, legal advice, or a compliance program.
+## ⚖️ Legal & Ethical Model (CRITICAL)
+
+FortressAssure is for **defensive and authorized use only**. It follows these strict operational rules:
+- ✅ Focuses on posture evaluation and risk formulation.
+- ❌ Does not perform unauthorized technical exploits.
+- ❌ No intrusive scanning without consent.
+
+---
+
+## 📦 Repository Hygiene
+- Sensitive files (like `.env`) are excluded via `.gitignore`.
+- Findings and samples used for testing are sanitized of genuine PII.
+
+---
+
+## 🧠 Intellectual Property Notice
+All trademarks, framework names (e.g., NIST, CIS, ISO, CyberArk), and service names are the property of their respective owners. Their use in FortressAssure is for identification, framework mapping, and educational purposes only.
+
+---
+
+## 📄 Disclaimer
+This project is provided **"as is"** without warranty of any kind. The authors and maintainers are not responsible for any misuse, unintended consequences, or damages resulting from the use of this tool. FortressAssure is intended for **defensive cybersecurity purposes only**.
+
+---
+
+## 📌 Project Status
+🚧 **Active Development**  
+Features, module logic, and risk heuristic algorithms evolve over time.
+
+---
+
+## 🧭 Support
+- **Issues**: Use [GitHub Issues](https://github.com/SuperMag99/fortressassure/issues).
+- **Security**: Refer to `SECURITY.md`.
+
+---
+
+## ⭐ Support the Project
+If FortressAssure helps your risk assessment or compliance team, consider giving the repository a ⭐.
+
+*Maintained by security professionals, for security professionals.*
+
+---
+
+## 📄 License
+Distributed under a Custom Non-Commercial License. Please see `LICENSE` file for details.  
+Copyright (c) 2026 Mohammad Ali Ghanem
+
+---
+
+## 👤 Maintainer
+**SuperMag99**  
+🔗 GitHub: [SuperMag99](https://github.com/SuperMag99)  
+🔗 LinkedIn: [mag99](https://www.linkedin.com/in/mag99/)

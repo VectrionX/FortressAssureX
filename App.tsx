@@ -1,46 +1,12 @@
-import React, { useMemo, useState } from 'react';
-import { AssessmentModule, AssessmentState, Finding, RiskLevel } from './types';
+import React, { useState } from 'react';
+import { AssessmentModule, RiskLevel, Finding, AssessmentState, Criticality, SystemCategory, AssessmentType } from './types';
 import { AssessmentSetup } from './components/AssessmentSetup';
-import { Dashboard } from './components/Dashboard';
-import { DocumentationTab } from './components/DocumentationTab';
-import { ReportTab } from './components/ReportTab';
-import { RiskBadge } from './components/RiskBadge';
-import { LocalEvidenceParser } from './components/LocalEvidenceParser';
-import { createSampleAssessment } from './services/sampleAssessment';
-import {
-  deriveAssessmentStatus,
-  isSupportedModule,
-  SUPPORTED_MVP_MODULES,
-  validateEvidenceFindingDraft,
-  type EvidenceFindingDraft,
-} from './services/assessmentModel';
+import { SUPPORTED_MODULES } from './components/AssessmentSetup';
 
-type Tab = 'overview' | 'evidence' | 'ledger' | 'documentation';
-
-const emptyState: AssessmentState = {
-  mode: 'live',
-  projectName: '',
-  systemOwner: '',
-  assetCriticality: 'MEDIUM' as AssessmentState['assetCriticality'],
-  businessCriticality: 'MEDIUM' as AssessmentState['businessCriticality'],
-  systemCategory: 'Banking System' as AssessmentState['systemCategory'],
-  assessmentType: 'Banking system or application' as AssessmentState['assessmentType'],
-  startDate: '',
-  systemScope: [],
-  findings: [],
-  isInitialized: false,
-};
-
-const emptyDraft = (module: AssessmentModule): EvidenceFindingDraft => ({
-  module,
-  title: '',
-  riskLevel: RiskLevel.MEDIUM,
-  observation: '',
-  evidenceReference: '',
-  evidenceExcerpt: '',
-  impact: '',
-  recommendation: '',
-});
+const INITIAL_MODULE_SCORES = Object.values(AssessmentModule).reduce((acc, module) => {
+  acc[module] = 0;
+  return acc;
+}, {} as Record<AssessmentModule, number>);
 
 const emptyState = (): AssessmentState => ({
   projectName: '', systemOwner: '', assetCriticality: Criticality.MEDIUM,
@@ -52,108 +18,50 @@ const emptyState = (): AssessmentState => ({
 
 const App: React.FC = () => {
   const [state, setState] = useState<AssessmentState>(emptyState);
-  const [activeTab, setActiveTab] = useState<Tab>('overview');
-  const [selectedModule, setSelectedModule] = useState<AssessmentModule>(AssessmentModule.ARCHITECTURE);
-  const [draft, setDraft] = useState<EvidenceFindingDraft>(emptyDraft(AssessmentModule.ARCHITECTURE));
-  const [formErrors, setFormErrors] = useState<string[]>([]);
-  const [maturityRatings, setMaturityRatings] = useState<Partial<Record<import('./services/assessmentModel').SupportedMvpModule, number>>>({});
+  const [activeTab, setActiveTab] = useState<'overview' | 'evidence' | 'register' | 'method'>('overview');
+  const [form, setForm] = useState({ module: AssessmentModule.ARCHITECTURE, title: '', observation: '', evidence: '', impact: '', recommendation: '', riskLevel: RiskLevel.INFORMATIONAL, owner: '' });
 
-  const status = useMemo(() => deriveAssessmentStatus(state.findings), [state.findings]);
-
-  const initialize = (data: Omit<AssessmentState, 'findings' | 'isInitialized' | 'mode'>) => {
-    setState({ ...data, mode: 'live', findings: [], isInitialized: true });
-  };
-
-  const loadSample = () => {
-    setState(createSampleAssessment());
-    setActiveTab('overview');
-    setSelectedModule(AssessmentModule.ARCHITECTURE);
-    setDraft(emptyDraft(AssessmentModule.ARCHITECTURE));
-    setFormErrors([]);
-    setMaturityRatings({});
-  };
-
-  const startRealAssessment = () => {
-    setState(emptyState);
-    setActiveTab('overview');
-    setSelectedModule(AssessmentModule.ARCHITECTURE);
-    setDraft(emptyDraft(AssessmentModule.ARCHITECTURE));
-    setFormErrors([]);
-    setMaturityRatings({});
-  };
-
-  const selectModule = (module: AssessmentModule) => {
-    setSelectedModule(module);
-    if (isSupportedModule(module)) {
-      setDraft(emptyDraft(module));
-      setFormErrors([]);
-    }
-  };
-
-  const submitFinding = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleInitialize = (initData: any) => setState(prev => ({ ...prev, ...initData, enabledModules: initData.enabledModules.filter((module: AssessmentModule) => SUPPORTED_MODULES.includes(module)), isInitialized: true }));
+  const handleLoadSample = () => setState({ ...emptyState(), projectName: 'Synthetic evidence workspace', systemOwner: 'User-supplied example', isInitialized: true });
+  const updateForm = (key: string, value: string) => setForm(prev => ({ ...prev, [key]: value }));
+  const addFinding = (event: React.FormEvent) => {
     event.preventDefault();
-    const validation = validateEvidenceFindingDraft(draft);
-    setFormErrors(validation.errors);
-    if (!validation.valid) return;
-
-    const finding: Finding = {
-      ...draft,
-      id: typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `finding-${Date.now()}`,
-      status: 'Recorded — human review required',
-      recordedAt: new Date().toISOString(),
-    };
-    if (state.mode === 'sample') return;
-    setState(current => ({ ...current, findings: [...current.findings, finding] }));
-    setDraft(emptyDraft(draft.module));
-    setFormErrors([]);
+    if (!SUPPORTED_MODULES.includes(form.module) || !form.title.trim() || !form.evidence.trim()) return;
+    const finding: Finding = { id: `evidence-${Date.now()}`, module: form.module, title: form.title.trim(), observation: form.observation.trim() || undefined, evidence: form.evidence.trim(), impact: form.impact.trim() || 'Impact not assessed; record the consequence supplied by the assessor.', recommendation: form.recommendation.trim() || 'Record the owner-supplied next action.', riskLevel: form.riskLevel, owner: form.owner.trim() || undefined, status: 'Open' };
+    setState(prev => ({ ...prev, findings: [...prev.findings, finding] }));
+    setForm(prev => ({ ...prev, title: '', observation: '', evidence: '', impact: '', recommendation: '', owner: '' }));
+    setActiveTab('register');
   };
 
-  if (!state.isInitialized) return <AssessmentSetup onInitialize={initialize} onLoadSample={loadSample} />;
+  if (!state.isInitialized) {
+    if (window.location.pathname !== '/') return <NotFound />;
+    return <AssessmentSetup onInitialize={handleInitialize} onLoadSample={handleLoadSample} />;
+  }
+  const counts = Object.values(RiskLevel).reduce((acc, level) => ({ ...acc, [level]: state.findings.filter(f => f.riskLevel === level).length }), {} as Record<RiskLevel, number>);
+  const tabs = [['overview', 'Overview'], ['evidence', 'Add evidence'], ['register', 'Evidence ledger'], ['method', 'Method & limits']] as const;
 
-  const tabs: Array<[Tab, string]> = [
-    ['overview', 'Overview'],
-    ['evidence', 'Evidence intake'],
-    ['ledger', 'Evidence ledger'],
-    ['documentation', 'Method & limits'],
-  ];
-  const selectedSupported = isSupportedModule(selectedModule);
-  const visibleFindings = state.findings.filter(finding => finding.module === selectedModule);
-
-  return (
-    <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-3 sm:px-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex min-w-0 items-center gap-3"><div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-slate-900 text-cyan-300 shadow-lg">⌁</div><div className="min-w-0"><h1 className="truncate text-lg font-bold">FortressAssureX</h1><p className="truncate text-xs text-slate-500">Evidence-led MVP · {state.projectName}</p></div></div>
-          <nav className="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1 lg:pb-0" aria-label="Primary navigation">{tabs.map(([tab, label]) => <button key={tab} onClick={() => setActiveTab(tab)} className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold transition ${activeTab === tab ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>{label}</button>)}</nav>
-        </div>
-      </header>
-
-      <main className="mx-auto w-full max-w-7xl p-4 sm:p-6 lg:p-8">
-        {state.mode === 'sample' && <div className="mb-6 flex flex-col gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-xs font-black uppercase tracking-[0.16em]">Sample assessment — synthetic data — read only</p><p className="mt-1 text-sm">No assessment, scan, control validation, or evidence collection was performed.</p></div><button onClick={startRealAssessment} className="shrink-0 rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-700">Start a real assessment</button></div>}
-        {activeTab === 'overview' && <Dashboard data={state} status={status} onOpenEvidence={() => setActiveTab('evidence')} maturityRatings={maturityRatings} onMaturityRatingChange={(module, rating) => setMaturityRatings(current => ({ ...current, [module]: rating }))} />}
-        {activeTab === 'ledger' && <ReportTab state={state} status={status} maturityRatings={maturityRatings} />}
-        {activeTab === 'documentation' && <DocumentationTab />}
-        {activeTab === 'evidence' && <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-          <aside className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"><p className="px-3 pb-2 pt-1 text-xs font-black uppercase tracking-[0.16em] text-slate-500">Module boundary</p><div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-1">{Object.values(AssessmentModule).map(module => { const supported = isSupportedModule(module); return <button key={module} onClick={() => selectModule(module)} className={`rounded-xl p-3 text-left transition ${selectedModule === module ? 'bg-slate-900 text-white' : supported ? 'hover:bg-cyan-50' : 'cursor-default opacity-70'}`}><span className="block text-sm font-semibold">{module}</span><span className={`mt-1 block text-xs ${selectedModule === module ? 'text-slate-300' : supported ? 'text-cyan-800' : 'text-slate-500'}`}>{supported ? 'Evidence-backed human intake' : 'Not supported in MVP'}</span></button>; })}</div></aside>
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-            {state.mode === 'sample' ? <div className="rounded-2xl border border-amber-300 bg-amber-50 p-8"><p className="text-xs font-black uppercase tracking-[0.16em] text-amber-800">Read-only demonstration</p><h2 className="mt-2 text-2xl font-bold text-amber-950">Sample evidence cannot be changed</h2><p className="mt-3 max-w-2xl text-sm leading-6 text-amber-900">The sample assessment is synthetic and exists only to demonstrate the interface. Start a real assessment to record human findings from supplied evidence.</p><button onClick={startRealAssessment} className="mt-6 rounded-xl bg-slate-900 px-5 py-3 text-sm font-bold text-white hover:bg-slate-700">Start a real assessment</button></div> : selectedSupported ? <>
-              <div className="border-b border-slate-200 pb-5"><p className="text-xs font-black uppercase tracking-[0.16em] text-cyan-700">Supported evidence intake</p><h2 className="mt-1 text-2xl font-bold">{selectedModule}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">Record a human finding tied to a specific evidence reference and excerpt. Severity is assessor-entered; FortressAssureX does not infer it or validate the underlying control.</p></div>
-              <form onSubmit={submitFinding} className="mt-6 space-y-5" noValidate>
-                {formErrors.length > 0 && <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-900"><p className="font-bold">This record cannot be saved yet.</p><ul className="mt-2 list-disc pl-5">{formErrors.map(error => <li key={error}>{error}</li>)}</ul></div>}
-                <div className="grid gap-5 md:grid-cols-[1fr_180px]"><label className="block text-sm font-semibold text-slate-700">Finding title<input required value={draft.title} onChange={event => setDraft({ ...draft, title: event.target.value })} className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-2.5" placeholder="Describe the observed condition" /></label><label className="block text-sm font-semibold text-slate-700">Assessor severity<select value={draft.riskLevel} onChange={event => setDraft({ ...draft, riskLevel: event.target.value as RiskLevel })} className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2.5">{Object.values(RiskLevel).map(level => <option key={level} value={level}>{level}</option>)}</select></label></div>
-                <label className="block text-sm font-semibold text-slate-700">Assessor observation<textarea required value={draft.observation} onChange={event => setDraft({ ...draft, observation: event.target.value })} rows={3} className="mt-1.5 w-full rounded-xl border border-slate-300 p-3" placeholder="What did you observe? State the observation without claiming automated validation." /></label>
-                <div className="grid gap-5 md:grid-cols-2"><label className="block text-sm font-semibold text-slate-700">Evidence reference<textarea required value={draft.evidenceReference} onChange={event => setDraft({ ...draft, evidenceReference: event.target.value })} rows={3} className="mt-1.5 w-full rounded-xl border border-slate-300 p-3 font-mono text-xs" placeholder="Document name, report ID, URL, path, page or line" /></label><label className="block text-sm font-semibold text-slate-700">Evidence excerpt or locator<textarea required value={draft.evidenceExcerpt} onChange={event => setDraft({ ...draft, evidenceExcerpt: event.target.value })} rows={3} className="mt-1.5 w-full rounded-xl border border-slate-300 p-3 font-mono text-xs" placeholder="Short quoted excerpt, page/row, or precise locator" /></label></div>
-                <div className="grid gap-5 md:grid-cols-2"><label className="block text-sm font-semibold text-slate-700">Stated impact<textarea required value={draft.impact} onChange={event => setDraft({ ...draft, impact: event.target.value })} rows={3} className="mt-1.5 w-full rounded-xl border border-slate-300 p-3" /></label><label className="block text-sm font-semibold text-slate-700">Recommended action<textarea required value={draft.recommendation} onChange={event => setDraft({ ...draft, recommendation: event.target.value })} rows={3} className="mt-1.5 w-full rounded-xl border border-slate-300 p-3" /></label></div>
-                <button type="submit" className="rounded-xl bg-cyan-700 px-5 py-3 text-sm font-bold text-white hover:bg-cyan-800">Record evidence-backed human finding</button>
-              </form>
-              <LocalEvidenceParser onUseExcerpt={(reference, excerpt) => setDraft(current => ({ ...current, evidenceReference: reference, evidenceExcerpt: excerpt }))} />
-              <div className="mt-8 border-t border-slate-200 pt-6"><h3 className="font-bold">Recorded for {selectedModule}</h3>{visibleFindings.length === 0 ? <p className="mt-2 text-sm text-slate-500">No human findings recorded for this module. It is not assessed.</p> : <div className="mt-4 space-y-3">{visibleFindings.map(finding => <div key={finding.id} className="rounded-xl border border-slate-200 p-4"><div className="flex flex-wrap justify-between gap-2"><p className="font-bold">{finding.title}</p><RiskBadge level={finding.riskLevel} /></div><p className="mt-2 text-sm text-slate-600">Evidence: <span className="font-mono text-xs">{finding.evidenceReference}</span></p></div>)}</div>}</div>
-            </> : <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center"><p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Not supported in MVP</p><h2 className="mt-2 text-2xl font-bold">{selectedModule}</h2><p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-600">This domain does not accept evidence, generate findings, or yield an assessment outcome in the current MVP. It is intentionally not assessed.</p></div>}
-          </section>
-        </div>}
-      </main>
-    </div>
-  );
+  if (window.location.pathname !== '/') return <NotFound />;
+  return <div className="min-h-screen bg-slate-50 text-slate-900">
+    <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur"><div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4">
+      <div><p className="text-xs font-bold uppercase tracking-[.2em] text-indigo-700">FortressAssureX</p><h1 className="text-lg font-bold">Evidence register</h1><p className="text-xs text-slate-500">{state.projectName} · user-supplied evidence only</p></div>
+      <nav aria-label="Primary navigation" className="flex flex-wrap gap-1">{tabs.map(([id, label]) => <button key={id} onClick={() => setActiveTab(id)} aria-current={activeTab === id ? 'page' : undefined} className={`rounded-lg px-3 py-2 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 ${activeTab === id ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'}`}>{label}</button>)}</nav>
+    </div></header>
+    <main className="mx-auto max-w-6xl space-y-6 px-4 py-8">
+      {activeTab === 'overview' && <><section className="rounded-2xl bg-slate-900 p-6 text-white shadow-sm"><p className="text-xs font-bold uppercase tracking-widest text-indigo-300">Bounded MVP</p><h2 className="mt-2 text-2xl font-bold">Record findings linked to supplied evidence.</h2><p className="mt-3 max-w-2xl text-slate-300">This workspace does not scan, validate controls, calculate posture, store evidence, or issue assurance, attestation, or certification claims.</p><button onClick={() => setActiveTab('evidence')} className="mt-5 rounded-lg bg-white px-4 py-2 font-semibold text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-300">Add a finding</button></section>
+        <section className="grid grid-cols-2 gap-4 md:grid-cols-5">{Object.values(RiskLevel).map(level => <div key={level} className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs font-bold uppercase text-slate-500">{level}</p><p className="mt-2 text-2xl font-bold">{counts[level]}</p></div>)}</section>
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-950"><strong>Scope boundary:</strong> severity, impact, ownership, and next actions are transcribed from assessor input. No score, risk rating, maturity value, or compliance conclusion is derived by this app.</section></>}
+      {activeTab === 'evidence' && <form onSubmit={addFinding} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-xl font-bold">Add a user-supplied finding</h2><p className="mt-1 text-sm text-slate-600">Evidence is held in memory for this browser session only and is never sent anywhere.</p><div className="mt-6 grid gap-4 md:grid-cols-2">
+        <label className="field">Domain<select value={form.module} onChange={e => updateForm('module', e.target.value)}>{Object.values(AssessmentModule).map(m => <option key={m}>{m}</option>)}</select></label>
+        <label className="field">Severity supplied by assessor<select value={form.riskLevel} onChange={e => updateForm('riskLevel', e.target.value)}>{Object.values(RiskLevel).map(l => <option key={l}>{l}</option>)}</select></label>
+        <label className="field md:col-span-2">Finding title<input required value={form.title} onChange={e => updateForm('title', e.target.value)} placeholder="Describe the finding" /></label>
+        <label className="field md:col-span-2">Evidence reference or excerpt<textarea required value={form.evidence} onChange={e => updateForm('evidence', e.target.value)} placeholder="Reference the supplied document, ticket, or observation" /></label>
+        <label className="field">Observation<textarea value={form.observation} onChange={e => updateForm('observation', e.target.value)} /></label><label className="field">Impact supplied by assessor<textarea value={form.impact} onChange={e => updateForm('impact', e.target.value)} /></label>
+        <label className="field">Next action supplied by assessor<textarea value={form.recommendation} onChange={e => updateForm('recommendation', e.target.value)} /></label><label className="field">Owner<input value={form.owner} onChange={e => updateForm('owner', e.target.value)} /></label>
+      </div><button type="submit" className="mt-5 rounded-lg bg-indigo-700 px-5 py-3 font-semibold text-white hover:bg-indigo-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-700">Save to session ledger</button></form>}
+      {activeTab === 'register' && <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-xl font-bold">Evidence ledger</h2><p className="mt-1 text-sm text-slate-600">{state.findings.length} finding(s), entered by the assessor.</p><div className="mt-5 space-y-4">{state.findings.length === 0 ? <p className="rounded-lg bg-slate-50 p-6 text-center text-slate-500">No findings recorded yet.</p> : state.findings.map(f => <article key={f.id} className="rounded-xl border border-slate-200 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase text-indigo-700">{f.module}</p><h3 className="mt-1 font-bold">{f.title}</h3></div><span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold">{f.riskLevel}</span></div><p className="mt-3 text-sm text-slate-700"><strong>Evidence:</strong> {f.evidence}</p>{f.observation && <p className="mt-2 text-sm text-slate-600"><strong>Observation:</strong> {f.observation}</p>}<p className="mt-2 text-sm text-slate-600"><strong>Next action:</strong> {f.recommendation}</p></article>)}</div></section>}
+      {activeTab === 'method' && <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm"><h2 className="text-xl font-bold">Method and limits</h2><div className="mt-4 space-y-4 text-sm leading-6 text-slate-700"><p>FortressAssureX records human-entered findings and links them to evidence references. It does not perform heuristic audits, parse uploaded files, call external services, access network targets, or persist data.</p><p>Unavailable domains remain unavailable rather than being inferred. The ledger is not an audit report, control validation, risk calculation, posture score, assurance rating, attestation, certification, or compliance determination.</p><p>Before relying on any entry, the responsible assessor must independently verify the source evidence, context, severity, impact, ownership, and remediation decision.</p></div></section>}
+    </main>
+  </div>;
 };
 const NotFound: React.FC = () => <main className="grid min-h-screen place-items-center bg-slate-900 px-6 text-center text-white"><div><p className="text-sm font-bold uppercase tracking-widest text-emerald-300">FortressAssureX</p><h1 className="mt-3 text-3xl font-bold">Page not found</h1><p className="mt-3 text-slate-300">The evidence register is available at the canonical root page.</p><a className="mt-6 inline-block rounded-lg bg-white px-4 py-2 font-semibold text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300" href="/">Return to FortressAssureX</a></div></main>;
 export default App;
